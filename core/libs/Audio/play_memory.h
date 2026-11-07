@@ -443,6 +443,7 @@ class AudioPlayMemory : public AudioStream
     const uint16_t* granularEnvelopeTab =
       nullptr; // wskaznik imitujacy tablice wplywajaca na amplitude próbek
 
+    uint32_t granularScanAccum = 0; // Scan position, 16.16 fixed point over the whole sample
     uint8_t granularPositionRefreshFlag = 1; // pozycja jest aktualizowana gdy nastepuje przejscie
                                              // pętli(audio) i ustawiona jest ta flaga
     //********

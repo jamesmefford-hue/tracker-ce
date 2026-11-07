@@ -82,6 +82,7 @@ static void modGranularLength(int16_t value);
 static void modGranularShape(int16_t value);
 static void modGranularPosition(int16_t value);
 static void modGranularLoopType(int16_t value);
+static void modGranularScan(int16_t value);
 
 constexpr uint32_t PLAY_REFRESH_US = 5000;
 
@@ -1119,6 +1120,8 @@ static void functButton5()
     }
     if (SP->editorInstrument->playMode == playModeGranular)
     {
+        SP->selectedPlace = 5;
+        SP->activateLabelsBorder();
         return;
     }
     else if (SP->editorInstrument->playMode == playModeBeatSlice ||
@@ -1264,8 +1267,12 @@ static void functEncoder(int16_t value)
             }
             case 5:
             {
-                if ((SP->editorInstrument->playMode != playModeSlice) &&
-                    (SP->editorInstrument->playMode != playModeBeatSlice))
+                if (SP->editorInstrument->playMode == playModeGranular)
+                {
+                    modGranularScan(value);
+                }
+                else if ((SP->editorInstrument->playMode != playModeSlice) &&
+                         (SP->editorInstrument->playMode != playModeBeatSlice))
                 {
                     changeZoom(value);
                 }
@@ -1394,7 +1401,7 @@ static void functLeft()
             }
             else if (SP->editorInstrument->playMode == playModeGranular)
             {
-                SP->selectedPlace = 4;
+                SP->selectedPlace = 5;
             }
             else
             {
@@ -1502,7 +1509,7 @@ static void functRight()
             }
             else if (SP->editorInstrument->playMode == playModeGranular)
             {
-                SP->selectedPlace = 6;
+                SP->selectedPlace = 5;
             }
             else
             {
@@ -1617,7 +1624,12 @@ static void functUp()
                 }
                 break;
             }
-            case 5: changeZoom(1); break;
+            case 5:
+                if (SP->editorInstrument->playMode == playModeGranular)
+                    modGranularScan(1);
+                else
+                    changeZoom(1);
+                break;
             case 6: changePlayModeSelection(-1); break;
         }
     }
@@ -1721,7 +1733,12 @@ static void functDown()
                 }
                 break;
             }
-            case 5: changeZoom(-1); break;
+            case 5:
+                if (SP->editorInstrument->playMode == playModeGranular)
+                    modGranularScan(-1);
+                else
+                    changeZoom(-1);
+                break;
             case 6: changePlayModeSelection(1); break;
         }
     }
@@ -2501,6 +2518,32 @@ static void modGranularShape(int16_t value)
     for (uint8_t i = 0; i < 8; i++)
     {
         instrumentPlayer[i].setRefreshBit(GRANULAR_WAVE_SEND_MASK);
+    }
+
+    newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
+}
+
+static void modGranularScan(int16_t value)
+{
+    int scan = SP->editorInstrument->getGranularScan() + value;
+
+    if (scan > strInstrument::kGranularScanMax)
+        scan = strInstrument::kGranularScanMax;
+    else if (scan < strInstrument::kGranularScanMin)
+        scan = strInstrument::kGranularScanMin;
+
+    SP->editorInstrument->setGranularScan((int8_t)scan);
+
+    bool isParamVisible = mtInterface.isSamplePlayerScreenActive() &&
+                          (SP->editorInstrument->playMode == instrumentPlayMode::playModeGranular);
+
+    if (isParamVisible)
+        SP->showGranularScanValue();
+
+    // Make playing voices pick it up at their next grain without resetting the position
+    for (uint8_t i = 0; i < 8; i++)
+    {
+        instrumentPlayer[i].setRefreshBit(GRANULAR_LEN_SEND_MASK);
     }
 
     newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);

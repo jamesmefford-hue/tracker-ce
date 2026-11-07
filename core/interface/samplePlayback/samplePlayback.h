@@ -252,6 +252,7 @@ class cSamplePlayback : public ModuleBase
     char grainLengthTextValue[15];
     char shapeText[15];
     char loopTypeText[15];
+    char granularScanText[15];
 
     uint16_t granularPositionInSpectrum;
     float grainLengthMs;
@@ -260,6 +261,7 @@ class cSamplePlayback : public ModuleBase
     void showGrainLengthValue();
     void showShapeText();
     void showLoopTypeText();
+    void showGranularScanValue();
 
     float samplePosToTime(uint32_t pos);
 

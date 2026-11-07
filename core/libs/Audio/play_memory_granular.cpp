@@ -94,6 +94,12 @@ AUDIO_CORE_FLASH void AudioPlayMemory::playGranular(uint8_t instrIdx, int8_t not
     iPitchCounter = reverseDirectionFlag ? constrainsInSamples.endPoint - 1 : 0;
 
     granularPositionRefreshFlag = 0;
+
+    // Scan starts from the grain's position and moves it on at each grain boundary
+    granularScanAccum = (uint32_t)currentGranularPosition << 16;
+    if (mtProject.instrument[instrIdx].getGranularScan() != 0)
+        granularPositionRefreshFlag = 1;
+
     playing = 1;
     //	__enable_irq();
     AudioInterrupts();

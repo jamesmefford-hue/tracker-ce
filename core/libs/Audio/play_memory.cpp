@@ -646,6 +646,22 @@ void AudioPlayMemory::refreshGranularPosition()
         : (granularLengthForcedFlag ? forcedGranularLength
                                     : mtProject.instrument[currentInstrIdx].granular.grainLength);
 
+    // Scan: each grain moves the position by Scan% of one grain length.
+    // 100 = roughly normal speed, 50 = half, negative = backwards, 0 = frozen.
+    // The position wraps around the sample (2^32 accumulator units = whole sample).
+    const int8_t scan = mtProject.instrument[currentInstrIdx].getGranularScan();
+    const uint32_t scanSampleLength = mtProject.instrument[currentInstrIdx].sample.length;
+    if ((scan != 0) && (scanSampleLength > 0))
+    {
+        // Position FX, LFO or the screen moved the grain: continue from there
+        if ((uint16_t)(granularScanAccum >> 16) != currentGranularPosition)
+            granularScanAccum = (uint32_t)currentGranularPosition << 16;
+
+        const int64_t grainInAccumUnits = ((int64_t)grainLengthToUse << 32) / scanSampleLength;
+        granularScanAccum += (uint32_t)((grainInAccumUnits * scan) / 100);
+        currentGranularPosition = (uint16_t)(granularScanAccum >> 16);
+    }
+
     auto [startGranular, loopPoint1Granular, loopPoint2Granular, endGranular] =
       calculateGranularPoints(currentGranularPosition,
                               grainLengthToUse,
@@ -667,7 +683,8 @@ void AudioPlayMemory::refreshGranularPosition()
     constrainsInSamples.loopLength = pointsInSamples.loop2 - pointsInSamples.loop1;
     constrainsInSamples.endPoint = pointsInSamples.end - pointsInSamples.start;
 
-    granularPositionRefreshFlag = 0;
+    // Keep refreshing at every grain boundary while scanning
+    granularPositionRefreshFlag = (scan != 0) ? 1 : 0;
 }
 
 std::tuple<uint16_t, uint16_t, uint16_t, uint16_t> AudioPlayMemory::calculateGranularPoints(

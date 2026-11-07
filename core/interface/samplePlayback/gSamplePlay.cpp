@@ -242,7 +242,8 @@ void cSamplePlayback::showDefaultScreen()
             display.setControlText(label[2], "Length");
             display.setControlText(label[3], "Shape");
             display.setControlText(label[4], "Loop");
-            display.setControlText(label[5], "");
+            display.setControlText(label[5], "Scan");
+            display.setControlColors(label[5], display.getTheme().activeLabelsColors);
 
             display.setControlShow(granularCursor);
             display.refreshControl(granularCursor);
@@ -257,6 +258,7 @@ void cSamplePlayback::showDefaultScreen()
             showGrainLengthValue();
             showShapeText();
             showLoopTypeText();
+            showGranularScanValue();
             display.setControlText2(label[0], "-");
         }
         else
@@ -798,6 +800,20 @@ void cSamplePlayback::showLoopTypeText()
     display.setControlText2(label[4], loopTypeText);
     display.setControlShow(label[4]);
     display.refreshControl(label[4]);
+}
+
+void cSamplePlayback::showGranularScanValue()
+{
+    int scan = editorInstrument->getGranularScan();
+
+    if (scan == 0)
+        strcpy(granularScanText, "Off");
+    else
+        sprintf(granularScanText, "%+d%%", scan);
+
+    display.setControlText2(label[5], granularScanText);
+    display.setControlShow(label[5]);
+    display.refreshControl(label[5]);
 }
 
 float cSamplePlayback::samplePosToTime(uint32_t pos)

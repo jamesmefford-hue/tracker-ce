@@ -598,6 +598,32 @@ struct strInstrument
 {
     uint8_t isActive;
 
+    // Granular Scan lives in what used to be padding before 'sample' (offsets 1..3), so the
+    // 372-byte .pti layout is unchanged. Old files may hold leftover bytes there, so the value
+    // only counts when the marker byte matches; anything else reads as Scan 0 (off).
+    static constexpr uint8_t kGranularScanMarker = 0xA5;
+    static constexpr int8_t kGranularScanMin = -100;
+    static constexpr int8_t kGranularScanMax = 100;
+    uint8_t granularScanMarker;
+    int8_t granularScanValue;
+    uint8_t reservedAfterScan;
+
+    int8_t getGranularScan() const
+    {
+        if (granularScanMarker != kGranularScanMarker)
+            return 0;
+        if (granularScanValue < kGranularScanMin)
+            return kGranularScanMin;
+        if (granularScanValue > kGranularScanMax)
+            return kGranularScanMax;
+        return granularScanValue;
+    }
+    void setGranularScan(int8_t value)
+    {
+        granularScanMarker = kGranularScanMarker;
+        granularScanValue = value;
+    }
+
     struct strSampleBankSlot
     {
         uint8_t type; //;
@@ -730,10 +756,14 @@ struct strInstrument
     }
 };
 static_assert(sizeof(strInstrument) == 372, "strInstrument size must remain 372 bytes");
+static_assert(offsetof(strInstrument, sample) == 4, "Granular Scan must stay inside the old padding");
 
 //----------------------------------------------------------------------------------
 const strInstrument defaultInstrumentParams = {
     .isActive = 0,
+    .granularScanMarker = 0,
+    .granularScanValue = 0,
+    .reservedAfterScan = 0,
     .sample = { 0, {}, nullptr, 0, 2048, 0 },
     .name = {},
     .playMode = playModeSingleShot,
