@@ -421,9 +421,9 @@ void playerEngine::fxPosition(uint8_t fx_val, uint8_t fx_n)
     {
         fxPositionGranular(fx_val, fx_n);
     }
-    else if ((mtProject.instrument[currentInstrument_idx].playMode != playModeSlice) &&
-             (mtProject.instrument[currentInstrument_idx].playMode != playModeBeatSlice))
+    else
     {
+        // Includes slice / beat slice: setFxStartPoint() turns it into an offset inside the slice
         fxPositionStartPoint(fx_val, fx_n);
     }
 }
@@ -2625,6 +2625,18 @@ void playerEngine::clearFxTune()
 // START POINT
 void playerEngine::setFxStartPoint(uint8_t fx_n)
 {
+    if ((mtProject.instrument[currentInstrument_idx].playMode == playModeSlice) ||
+        (mtProject.instrument[currentInstrument_idx].playMode == playModeBeatSlice))
+    {
+        // Slices have no loop points: skip modSeqPoints() and use the value as an offset
+        for (int channel = 0; channel < (int)playMemPtr.size(); channel++)
+        {
+            playMemPtr[channel]->setForcedSliceOffset(currentSeqModValues.startPoint);
+            playMemPtr[channel]->setSliceOffsetForcedFlag();
+        }
+        return;
+    }
+
     if (trackControlParameter[(int)controlType::performanceMode][(int)parameterList::startPoint])
     {
         changeStartPointPerformanceMode(performanceMod.startPoint);
@@ -2640,6 +2652,11 @@ void playerEngine::setFxStartPoint(uint8_t fx_n)
 }
 void playerEngine::clearFxStartPoint()
 {
+    for (int channel = 0; channel < (int)playMemPtr.size(); channel++)
+    {
+        playMemPtr[channel]->clearSliceOffsetForcedFlag();
+    }
+
     if (trackControlParameter[(int)controlType::performanceMode][(int)parameterList::startPoint])
     {
         changeStartPointPerformanceMode(performanceMod.startPoint);

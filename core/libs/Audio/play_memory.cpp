@@ -224,6 +224,7 @@ uint8_t AudioPlayMemory::playForPrev(uint8_t instr_idx, int8_t n)
     wavetableWindowForceFlag = 0;
     sliceForcedFlag = 0;
     granularForcedFlag = 0;
+    sliceOffsetForcedFlag = 0;
     reverseDirectionFlag = 0;
     constrainsInSamples.pitchSmoothing = 0;
 
@@ -254,6 +255,7 @@ uint8_t AudioPlayMemory::playForPrev(int16_t* addr, uint32_t len, uint8_t type)
     wavetableWindowForceFlag = 0;
     sliceForcedFlag = 0;
     granularForcedFlag = 0;
+    sliceOffsetForcedFlag = 0;
     reverseDirectionFlag = 0;
     constrainsInSamples.pitchSmoothing = 0;
 
@@ -377,6 +379,7 @@ uint8_t AudioPlayMemory::playForPrev(int16_t* addr, uint32_t len, uint8_t n, uin
     wavetableWindowForceFlag = 0;
     sliceForcedFlag = 0;
     granularForcedFlag = 0;
+    sliceOffsetForcedFlag = 0;
     reverseDirectionFlag = 0;
 
     constrainsInSamples.pitchSmoothing = 0;
@@ -1064,6 +1067,18 @@ void AudioPlayMemory::setSliceForcedFlag()
 void AudioPlayMemory::clearSliceForcedFlag()
 {
     sliceForcedFlag = 0;
+}
+void AudioPlayMemory::setForcedSliceOffset(uint16_t value)
+{
+    forcedSliceOffset = value;
+}
+void AudioPlayMemory::setSliceOffsetForcedFlag()
+{
+    sliceOffsetForcedFlag = 1;
+}
+void AudioPlayMemory::clearSliceOffsetForcedFlag()
+{
+    sliceOffsetForcedFlag = 0;
 }
 void AudioPlayMemory::setCurrentInstrIdx(uint8_t n)
 {

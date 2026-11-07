@@ -163,6 +163,9 @@ class AudioPlayMemory : public AudioStream
     //************Slice
     void setForcedSlice(uint8_t value);
     void setSliceForcedFlag();
+    void setForcedSliceOffset(uint16_t value);
+    void setSliceOffsetForcedFlag();
+    void clearSliceOffsetForcedFlag();
     void clearSliceForcedFlag();
     //************************************************
 
@@ -467,6 +470,7 @@ class AudioPlayMemory : public AudioStream
     uint8_t granularForcedFlag;
     uint8_t granularLengthForcedFlag = 0;
     uint8_t reverseDirectionFlag;
+    uint8_t sliceOffsetForcedFlag = 0;
 
     uint16_t forcedStartPoint;
     uint16_t forcedLoopPoint1;
@@ -477,6 +481,7 @@ class AudioPlayMemory : public AudioStream
     int8_t forcedFineTune;
     uint32_t forcedWavetableWindow;
     uint8_t forcedSlice;
+    uint16_t forcedSliceOffset = 0; // 0..MAX_16BIT, fraction of the slice length
     uint16_t forcedGranularPosition;
     uint16_t forcedGranularLength = MIN_GRANULAR_LENGTH;
 

@@ -61,6 +61,12 @@ AUDIO_CORE_FLASH void AudioPlayMemory::playBeatSlice(uint8_t instrIdx, int8_t no
                      : MAX_16BIT;
     }
 
+    // Position FX in slice modes: start this far into the slice (fraction of its length)
+    if (sliceOffsetForcedFlag && (endSlice > startSlice))
+    {
+        startSlice += (uint16_t)(((uint32_t)(endSlice - startSlice) * forcedSliceOffset) >> 16);
+    }
+
     if (samplePointsSource != nullptr)
     {
         pointsInSamples.start = samplePointsSource->pointsInSamples.start;
