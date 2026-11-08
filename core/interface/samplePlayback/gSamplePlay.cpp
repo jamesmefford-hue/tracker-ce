@@ -99,6 +99,19 @@ void cSamplePlayback::initDisplayControls()
     prop.colors = display.getTheme().granularProgressColors;
     granularCursor = display.createControl<cLineIndicator>(&prop);
 
+    // Granular Heads 2 and 3 get their own cursors, orange and yellow
+    granularHeadColors[0][0] = display.getTheme().orange;
+    granularHeadColors[1][0] = display.getTheme().yellow;
+    for (uint8_t h = 0; h < 2; h++)
+    {
+        granularHeadColors[h][1] = display.getTheme().granularProgressColors[1];
+        granularHeadSelection[h].start = 0;
+        granularHeadSelection[h].end = 0;
+        prop.data = &granularHeadSelection[h];
+        prop.colors = granularHeadColors[h];
+        granularHeadCursor[h] = display.createControl<cLineIndicator>(&prop);
+    }
+
     prop.data = &points;
     prop.colors = nullptr;
     pointsControl = display.createControl<cPoints>(&prop);
@@ -177,6 +190,7 @@ void cSamplePlayback::showDefaultScreen()
         {
             display.setControlHide(pointsControl);
             display.setControlHide(granularCursor);
+            hideGranularHeadCursors();
             display.setControlShow(slicePointsControl);
             display.refreshControl(slicePointsControl);
 
@@ -256,7 +270,7 @@ void cSamplePlayback::showDefaultScreen()
                 display.setControlText(label[1], "Scan");
                 display.setControlText(label[2], "Heads");
                 display.setControlText(label[3], "Spread");
-                display.setControlText(label[4], "");
+                display.setControlText(label[4], "Direction");
             }
             display.setControlText(label[5], "More");
 
@@ -281,7 +295,7 @@ void cSamplePlayback::showDefaultScreen()
                 showGranularScanValue();
                 showGranularHeadsValue();
                 showGranularSpreadValue();
-                display.setControlText2(label[4], "");
+                showGranularDirectionText();
             }
             display.setControlText2(label[0], "-");
         }
@@ -292,6 +306,7 @@ void cSamplePlayback::showDefaultScreen()
 
             display.setControlHide(granularCursor);
             display.refreshControl(granularCursor);
+            hideGranularHeadCursors();
 
             display.setControlText(label[0], "Preview");
             display.setControlText(label[1], "Start");
@@ -341,6 +356,7 @@ void cSamplePlayback::showDefaultScreen()
 
         display.setControlHide(granularCursor);
         display.refreshControl(granularCursor);
+        hideGranularHeadCursors();
         // points
         display.setControlHide(pointsControl);
         display.refreshControl(pointsControl);
@@ -375,6 +391,8 @@ void cSamplePlayback::hideUselessControls()
     display.setControlHide(playModeListControl);
     display.setControlHide(slicePointsControl);
     display.setControlHide(granularCursor);
+    display.setControlHide(granularHeadCursor[0]);
+    display.setControlHide(granularHeadCursor[1]);
     display.setControlHide(progressCursor);
     display.setControlHide(wtPositionCursor);
     display.setControlHide(wtPositionCursor);
@@ -757,26 +775,16 @@ void cSamplePlayback::showGranularPositionValue()
     uint32_t effectiveGrainLength =
       (currentEnvelopeGranLen > 0) ? currentEnvelopeGranLen
                                    : static_cast<uint32_t>(editorInstrument->granular.grainLength);
-    uint16_t granularDisplayedLength =
-      ((uint32_t)(effectiveGrainLength * 600)) /
-      editorInstrument->sample.length;
 
     granularPositionInSpectrum = currentEnvelopeGranPos * (600.0 / MAX_16BIT);
 
-    int upperZoneLength = granularDisplayedLength / 2 +
-                          (granularDisplayedLength / 2 -
-                           std::min((int)granularPositionInSpectrum, granularDisplayedLength / 2));
-    int lowerZoneLength =
-      granularDisplayedLength / 2 +
-      (granularDisplayedLength / 2 -
-       std::min((int)(600 - granularPositionInSpectrum), granularDisplayedLength / 2));
-
-    lineIndicatorSelection.start = clamp(granularPositionInSpectrum - lowerZoneLength, 0, 600);
-    lineIndicatorSelection.end = clamp(granularPositionInSpectrum + upperZoneLength, 0, 600);
+    setGranularCursorSelection(lineIndicatorSelection, granularPositionInSpectrum, effectiveGrainLength);
 
     display.setControlValue(granularCursor, granularPositionInSpectrum);
     display.setControlShow(granularCursor);
     display.refreshControl(granularCursor);
+
+    showGranularHeadCursors();
 
     if (granular2ndScreenActive())
         return;
@@ -784,6 +792,69 @@ void cSamplePlayback::showGranularPositionValue()
     display.setControlText2(label[1], granularPositionTextValue);
     display.setControlShow(label[1]);
     display.refreshControl(label[1]);
+}
+
+// Grain zone around a cursor; near the sample edges the zone keeps its width
+void cSamplePlayback::setGranularCursorSelection(strLineIndicatorSelection& selection,
+                                                 uint16_t positionInSpectrum,
+                                                 uint32_t grainLength)
+{
+    const int displayedLength = ((uint32_t)(grainLength * 600)) / editorInstrument->sample.length;
+    const int half = displayedLength / 2;
+
+    int upperZoneLength = half + (half - std::min((int)positionInSpectrum, half));
+    int lowerZoneLength = half + (half - std::min((int)(600 - positionInSpectrum), half));
+
+    selection.start = clamp((int)positionInSpectrum - lowerZoneLength, 0, 600);
+    selection.end = clamp((int)positionInSpectrum + upperZoneLength, 0, 600);
+}
+
+// Cursors for granular Heads 2 and 3. While a note plays they follow the heads' live grain
+// positions; otherwise they show where each head starts (the grain position plus Spread).
+void cSamplePlayback::showGranularHeadCursors()
+{
+    const uint8_t heads = editorInstrument->getGranularHeads();
+    const uint32_t grainLength =
+      (currentEnvelopeGranLen > 0) ? currentEnvelopeGranLen
+                                   : static_cast<uint32_t>(editorInstrument->granular.grainLength);
+    const bool playing = (displayedTrack != kNoTrack);
+
+    for (uint8_t h = 0; h < 2; h++)
+    {
+        uint16_t position = 0;
+        const bool visible = (h + 2 <= heads);
+
+        if (visible &&
+            !(playing && instrumentPlayer[displayedTrack].getGranularHeadPosition(h + 1, position)))
+        {
+            // Same offset the audio engine uses: Spread% of (head / heads) of the sample, wrapped
+            const uint32_t offset =
+              ((uint32_t)editorInstrument->getGranularSpread() * (h + 1) * 65536u) / (100u * heads);
+            position = (uint16_t)(currentEnvelopeGranPos + offset);
+        }
+
+        if (!visible)
+        {
+            display.setControlHide(granularHeadCursor[h]);
+            display.refreshControl(granularHeadCursor[h]);
+            continue;
+        }
+
+        const uint16_t inSpectrum = position * (600.0 / MAX_16BIT);
+        setGranularCursorSelection(granularHeadSelection[h], inSpectrum, grainLength);
+        display.setControlValue(granularHeadCursor[h], inSpectrum);
+        display.setControlShow(granularHeadCursor[h]);
+        display.refreshControl(granularHeadCursor[h]);
+    }
+}
+
+void cSamplePlayback::hideGranularHeadCursors()
+{
+    for (uint8_t h = 0; h < 2; h++)
+    {
+        display.setControlHide(granularHeadCursor[h]);
+        display.refreshControl(granularHeadCursor[h]);
+    }
 }
 
 void cSamplePlayback::showGrainLengthValue()
@@ -875,6 +946,23 @@ void cSamplePlayback::showGranularSpreadValue()
     display.setControlText2(label[3], granularSpreadText);
     display.setControlShow(label[3]);
     display.refreshControl(label[3]);
+}
+
+void cSamplePlayback::showGranularDirectionText()
+{
+    if (!granular2ndScreenActive())
+        return;
+
+    switch (editorInstrument->getGranularDirection())
+    {
+        case strInstrument::granularDirectionAlternate: strcpy(granularDirectionText, "Alternate"); break;
+        case strInstrument::granularDirectionOpposite: strcpy(granularDirectionText, "Opposite"); break;
+        default: strcpy(granularDirectionText, "Same"); break;
+    }
+
+    display.setControlText2(label[4], granularDirectionText);
+    display.setControlShow(label[4]);
+    display.refreshControl(label[4]);
 }
 
 float cSamplePlayback::samplePosToTime(uint32_t pos)

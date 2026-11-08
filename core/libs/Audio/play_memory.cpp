@@ -655,7 +655,10 @@ void AudioPlayMemory::refreshGranularPosition()
     {
         // Position FX, LFO or the screen moved the grain: continue from there
         if ((uint16_t)(granularScanAccum >> 16) != currentGranularPosition)
+        {
             granularScanAccum = (uint32_t)currentGranularPosition << 16;
+            granularScanBase = granularScanAccum;
+        }
 
         const int64_t grainInAccumUnits = ((int64_t)grainLengthToUse << 32) / scanSampleLength;
         granularScanAccum += (uint32_t)((grainInAccumUnits * scan) / 100);
@@ -1055,6 +1058,25 @@ uint16_t AudioPlayMemory::getPosition()
 {
     return (uint16_t)(65535 *
                       ((pointsInSamples.start + iPitchCounter) / (float)currentSampleLength));
+}
+bool AudioPlayMemory::getGranularHeadPosition(uint8_t head, uint16_t& position)
+{
+    if (!playing || currentPlayMode != playModeGranular)
+        return false;
+
+    if (head == 0)
+    {
+        position = currentGranularPosition;
+        return true;
+    }
+
+    // Extra heads only play for samples fully in RAM (see mixExtraGranularHeads)
+    if (head > kMaxExtraGranularHeads || currentIsStreamed ||
+        head >= mtProject.instrument[currentInstrIdx].getGranularHeads())
+        return false;
+
+    position = extraGranularHeads[head - 1].position;
+    return true;
 }
 int16_t* AudioPlayMemory::getStartAddresIfPlaying()
 {

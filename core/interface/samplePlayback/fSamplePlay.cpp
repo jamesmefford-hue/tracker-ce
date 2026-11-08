@@ -85,12 +85,14 @@ static void modGranularLoopType(int16_t value);
 static void modGranularScan(int16_t value);
 static void modGranularHeads(int16_t value);
 static void modGranularSpread(int16_t value);
+static void modGranularDirection(int16_t value);
 static bool granularPage2Encoder(int16_t value);
 static bool granularPage2Button(uint8_t place, uint8_t state);
 static bool granularPage2Left();
 static bool granularPage2Right();
 
 constexpr uint32_t PLAY_REFRESH_US = 5000;
+constexpr uint32_t GRANULAR_HEADS_REFRESH_US = 30000; // moving grain cursors, ~33 fps
 
 void cSamplePlayback::update()
 {
@@ -507,10 +509,35 @@ void cSamplePlayback::refreshGranularAutomation()
     {
         currentEnvelopeGranPos = instrumentPlayer[displayedTrack].getEnvelopeGranPosMod();
         currentEnvelopeGranLen = instrumentPlayer[displayedTrack].getEnvelopeGranLenMod();
+
+        // With Scan or extra heads the grains move on their own: follow the live positions
+        const bool headsMove = (editorInstrument->getGranularScan() != 0) ||
+                               (editorInstrument->getGranularHeads() > 1);
+        uint16_t livePosition;
+        if ((editorInstrument->getGranularScan() != 0) &&
+            instrumentPlayer[displayedTrack].getGranularHeadPosition(0, livePosition))
+        {
+            currentEnvelopeGranPos = livePosition;
+        }
+
         if (currentEnvelopeGranPos != lastEnvelopeGranPos ||
             currentEnvelopeGranLen != lastEnvelopeGranLen)
         {
-            showGranularPositionValue();
+            if (!headsMove || refreshGranularHeads > GRANULAR_HEADS_REFRESH_US)
+            {
+                refreshGranularHeads = 0;
+                showGranularPositionValue();
+            }
+            else
+            {
+                // try again on the next refresh
+                return;
+            }
+        }
+        else if (headsMove && refreshGranularHeads > GRANULAR_HEADS_REFRESH_US)
+        {
+            refreshGranularHeads = 0;
+            showGranularHeadCursors();
         }
         lastEnvelopeGranPos = currentEnvelopeGranPos;
         lastEnvelopeGranLen = currentEnvelopeGranLen;
@@ -2605,6 +2632,7 @@ static void modGranularHeads(int16_t value)
 
     SP->editorInstrument->setGranularHeads((uint8_t)heads);
     SP->showGranularHeadsValue();
+    SP->showGranularHeadCursors();
     newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
 }
 
@@ -2619,10 +2647,25 @@ static void modGranularSpread(int16_t value)
 
     SP->editorInstrument->setGranularSpread((uint8_t)spread);
     SP->showGranularSpreadValue();
+    SP->showGranularHeadCursors();
     newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
 }
 
-// Granular page 2 (Scan, Heads, Spread). Each returns true when it handled the input.
+static void modGranularDirection(int16_t value)
+{
+    int dir = (int)SP->editorInstrument->getGranularDirection() + value;
+
+    if (dir > strInstrument::granularDirectionCount - 1)
+        dir = strInstrument::granularDirectionCount - 1;
+    else if (dir < 0)
+        dir = 0;
+
+    SP->editorInstrument->setGranularDirection((uint8_t)dir);
+    SP->showGranularDirectionText();
+    newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
+}
+
+// Granular page 2 (Scan, Heads, Spread, Direction). Each returns true when it handled the input.
 static bool granularPage2Encoder(int16_t value)
 {
     if (!SP->granular2ndScreenActive())
@@ -2633,6 +2676,7 @@ static bool granularPage2Encoder(int16_t value)
         case 1: modGranularScan(value); break;
         case 2: modGranularHeads((value > 0) ? 1 : -1); break;
         case 3: modGranularSpread(value); break;
+        case 4: modGranularDirection((value > 0) ? 1 : -1); break;
         case 6: return false; // Play Mode list works as on page 1
         default: break;
     }
@@ -2644,7 +2688,7 @@ static bool granularPage2Button(uint8_t place, uint8_t state)
     if (!SP->granular2ndScreenActive())
         return false;
 
-    if ((place >= 1) && (place <= 3) && (state == buttonPress || state == UINT8_MAX))
+    if ((place >= 1) && (place <= 4) && (state == buttonPress || state == UINT8_MAX))
     {
         SP->selectedPlace = place;
         SP->activateLabelsBorder();
@@ -2661,7 +2705,8 @@ static bool granularPage2Left()
     {
         case 2: SP->selectedPlace = 1; break;
         case 3: SP->selectedPlace = 2; break;
-        case 5: SP->selectedPlace = 3; break;
+        case 4: SP->selectedPlace = 3; break;
+        case 5: SP->selectedPlace = 4; break;
         case 6: SP->selectedPlace = 5; break;
         default: break;
     }
@@ -2679,7 +2724,8 @@ static bool granularPage2Right()
         case 0: SP->selectedPlace = 1; break;
         case 1: SP->selectedPlace = 2; break;
         case 2: SP->selectedPlace = 3; break;
-        case 3: SP->selectedPlace = 5; break;
+        case 3: SP->selectedPlace = 4; break;
+        case 4: SP->selectedPlace = 5; break;
         case 5: SP->selectedPlace = 6; break;
         default: break;
     }
@@ -2812,6 +2858,8 @@ void cSamplePlayback::setDefault(uint8_t pos)
             modGranularHeads(1 - (int)SP->editorInstrument->getGranularHeads());
         else if (SP->selectedPlace == 3)
             modGranularSpread(-(int)SP->editorInstrument->getGranularSpread());
+        else if (SP->selectedPlace == 4)
+            modGranularDirection(-(int)SP->editorInstrument->getGranularDirection());
         return;
     }
 

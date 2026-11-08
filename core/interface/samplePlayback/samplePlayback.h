@@ -51,6 +51,8 @@ class cSamplePlayback : public ModuleBase
 
         progressCursor = -1;
         granularCursor = -1;
+        granularHeadCursor[0] = -1;
+        granularHeadCursor[1] = -1;
         spectrumControl[0] = -1;
         spectrumControl[1] = -1;
         pointsControl = -1;
@@ -154,6 +156,7 @@ class cSamplePlayback : public ModuleBase
     hControl frameControl;
     hControl progressCursor;
     hControl granularCursor;
+    hControl granularHeadCursor[2]; // granular Heads 2 and 3
     hControl wtPositionCursor;
     hControl bgLabel;
 
@@ -202,6 +205,8 @@ class cSamplePlayback : public ModuleBase
     wt_position_data_t wtPosition;
 
     strLineIndicatorSelection lineIndicatorSelection;
+    strLineIndicatorSelection granularHeadSelection[2];
+    uint32_t granularHeadColors[2][2]; // line, grain zone
 
     //----------------------------------
     // lista play mode
@@ -256,6 +261,8 @@ class cSamplePlayback : public ModuleBase
     char loopTypeText[15];
     char granularScanText[15];
     char granularHeadsText[15];
+    char granularDirectionText[15];
+    elapsedMicros refreshGranularHeads = 0;
     char granularSpreadText[15];
 
     uint16_t granularPositionInSpectrum;
@@ -268,6 +275,12 @@ class cSamplePlayback : public ModuleBase
     void showGranularScanValue();
     void showGranularHeadsValue();
     void showGranularSpreadValue();
+    void showGranularDirectionText();
+    void showGranularHeadCursors();
+    void hideGranularHeadCursors();
+    void setGranularCursorSelection(strLineIndicatorSelection& selection,
+                                    uint16_t positionInSpectrum,
+                                    uint32_t grainLength);
 
     float samplePosToTime(uint32_t pos);
 

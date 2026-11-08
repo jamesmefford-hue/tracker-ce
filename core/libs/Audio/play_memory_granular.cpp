@@ -97,6 +97,7 @@ AUDIO_CORE_FLASH void AudioPlayMemory::playGranular(uint8_t instrIdx, int8_t not
 
     // Scan starts from the grain's position and moves it on at each grain boundary
     granularScanAccum = (uint32_t)currentGranularPosition << 16;
+    granularScanBase = granularScanAccum;
     if (mtProject.instrument[instrIdx].getGranularScan() != 0)
         granularPositionRefreshFlag = 1;
 
@@ -107,6 +108,7 @@ AUDIO_CORE_FLASH void AudioPlayMemory::playGranular(uint8_t instrIdx, int8_t not
         {
             extraGranularHeads[h] = strExtraGranularHead();
             extraGranularHeads[h].startPhase = ((uint32_t)(h + 1) << 16) / heads;
+            extraGranularHeads[h].position = currentGranularPosition;
         }
     }
 
@@ -135,7 +137,8 @@ AUDIO_CORE_FLASH audio_block_t* AudioPlayMemory::updateGranular()
 // Heads 2 and 3: extra grains read from the same sample and mixed into the main grain.
 // They follow the main grain's position, length, shape and pitch; Spread offsets each head
 // by up to (head / heads) of the whole sample. Loop type Backward or the Reverse FX play
-// them backwards; PingPong plays them forwards.
+// them backwards; PingPong plays them forwards. Direction can reverse a head: it then scans
+// the mirror image of the main grain's travel and plays its grains the other way round.
 AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* block)
 {
     const strInstrument& instr = mtProject.instrument[currentInstrIdx];
@@ -171,9 +174,17 @@ AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* bloc
     for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
         mix[i] = block->data[i];
 
+    // Main grain position, and its mirror around where the scan started (for reversed heads)
+    const uint32_t mainPosition = (uint32_t)currentGranularPosition << 16;
+    const uint32_t mirrorPosition = (instr.getGranularScan() != 0)
+                                      ? granularScanBase - (granularScanAccum - granularScanBase)
+                                      : mainPosition;
+
     for (uint8_t h = 0; h < heads - 1; h++)
     {
         strExtraGranularHead& head = extraGranularHeads[h];
+        const bool reversed = instr.isGranularHeadReversed(h);
+        const bool headBackwards = backwards != reversed;
 
         for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
         {
@@ -182,8 +193,9 @@ AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* bloc
                 // New grain around the main position, offset by Spread for this head
                 const uint32_t offset =
                   (uint32_t)(((uint64_t)spread * (h + 1) << 32) / (100u * heads));
-                const uint32_t position = ((uint32_t)currentGranularPosition << 16) + offset;
+                const uint32_t position = (reversed ? mirrorPosition : mainPosition) + offset;
                 const uint32_t center = (uint32_t)(((uint64_t)position * sampleLength) >> 32);
+                head.position = (uint16_t)(position >> 16);
 
                 uint32_t start = (center > grainLength / 2) ? center - grainLength / 2 : 0;
                 if (start + grainLength >= sampleLength)
@@ -203,10 +215,11 @@ AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* bloc
                 head.envStep = ((uint32_t)(GRANULAR_LOOKUP_SIZE - 1) << 16) / grainLength;
             }
 
-            const uint32_t idx = backwards ? (head.grainLength - 1 - head.counter) : head.counter;
+            const uint32_t idx =
+              headBackwards ? (head.grainLength - 1 - head.counter) : head.counter;
             const int16_t* p = data + head.grainStart + idx;
             int32_t s = p[0];
-            const int32_t next = backwards ? ((idx > 0) ? p[-1] : s) : p[1];
+            const int32_t next = headBackwards ? ((idx > 0) ? p[-1] : s) : p[1];
             s += (int32_t)((((int32_t)(head.fraction >> 2)) * (next - s)) >> 14);
 
             if (!isSquareEnv)

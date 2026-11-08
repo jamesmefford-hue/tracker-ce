@@ -332,6 +332,7 @@ class playerEngine
     uint32_t getEnvelopeWtPosMod();
 
     uint16_t getWavePosition();
+    bool getGranularHeadPosition(uint8_t head, uint16_t& position);
     int16_t* getWaveStartAddressIfPlaying(int channel);
     uint32_t getLengthIfPlaying();
     void update();

@@ -607,6 +607,16 @@ struct strInstrument
     static constexpr int8_t kGranularScanMax = 100;
     static constexpr uint8_t kGranularHeadsMax = 3;
     static constexpr uint8_t kGranularSpreadMax = 100;
+    // Direction shares the Heads byte: heads in bits 0..3, direction in bits 4..5
+    enum granularDirection : uint8_t
+    {
+        granularDirectionSame = 0,      // all heads move the main grain's way
+        granularDirectionAlternate = 1, // head 2 moves the other way
+        granularDirectionOpposite = 2,  // heads 2 and 3 move the other way
+        granularDirectionCount
+    };
+    static constexpr uint8_t kGranularHeadsMask = 0x0F;
+    static constexpr uint8_t kGranularDirectionShift = 4;
     uint8_t granularScanMarker;
     int8_t granularScanValue;
     uint8_t granularHeadsValue;
@@ -639,14 +649,34 @@ struct strInstrument
     }
     uint8_t getGranularHeads() const
     {
-        if (!hasGranularModFields() || granularHeadsValue < 1)
+        const uint8_t heads = granularHeadsValue & kGranularHeadsMask;
+        if (!hasGranularModFields() || heads < 1)
             return 1;
-        return (granularHeadsValue > kGranularHeadsMax) ? kGranularHeadsMax : granularHeadsValue;
+        return (heads > kGranularHeadsMax) ? kGranularHeadsMax : heads;
     }
     void setGranularHeads(uint8_t value)
     {
         claimGranularModFields();
-        granularHeadsValue = value;
+        granularHeadsValue = (granularHeadsValue & ~kGranularHeadsMask) | (value & kGranularHeadsMask);
+    }
+    uint8_t getGranularDirection() const
+    {
+        if (!hasGranularModFields())
+            return granularDirectionSame;
+        const uint8_t dir = granularHeadsValue >> kGranularDirectionShift;
+        return (dir < granularDirectionCount) ? dir : (uint8_t)granularDirectionSame;
+    }
+    void setGranularDirection(uint8_t value)
+    {
+        claimGranularModFields();
+        granularHeadsValue = (granularHeadsValue & kGranularHeadsMask) |
+                             (uint8_t)(value << kGranularDirectionShift);
+    }
+    // True when extra head h (0 = head 2, 1 = head 3) moves against the main grain
+    bool isGranularHeadReversed(uint8_t h) const
+    {
+        const uint8_t dir = getGranularDirection();
+        return (dir == granularDirectionOpposite) || (dir == granularDirectionAlternate && h == 0);
     }
     uint8_t getGranularSpread() const
     {
