@@ -250,6 +250,7 @@ class AudioPlayMemory : public AudioStream
     audio_block_t* updateSlice();
     audio_block_t* updateBeatSlice();
     audio_block_t* updateGranular();
+    void mixExtraGranularHeads(audio_block_t* block);
     audio_block_t* updateWavetable();
 
     // singleShot
@@ -444,6 +445,18 @@ class AudioPlayMemory : public AudioStream
       nullptr; // wskaznik imitujacy tablice wplywajaca na amplitude próbek
 
     uint32_t granularScanAccum = 0; // Scan position, 16.16 fixed point over the whole sample
+
+    // Extra granular heads (Heads 2 and 3). Each plays its own grain, offset by Spread.
+    static constexpr uint8_t kMaxExtraGranularHeads = 2;
+    struct strExtraGranularHead
+    {
+        uint32_t grainStart = 0;   // first sample of the current grain
+        uint32_t grainLength = 0;  // 0 = start a new grain on the next sample
+        uint32_t counter = 0;      // integer position inside the grain
+        uint32_t fraction = 0;     // 16-bit fractional position inside the grain
+        uint32_t startPhase = 0;   // where in its first grain this head starts (16-bit fraction)
+        uint32_t envStep = 0;      // envelope table step per grain sample (16.16)
+    } extraGranularHeads[kMaxExtraGranularHeads];
     uint8_t granularPositionRefreshFlag = 1; // pozycja jest aktualizowana gdy nastepuje przejscie
                                              // pętli(audio) i ustawiona jest ta flaga
     //********

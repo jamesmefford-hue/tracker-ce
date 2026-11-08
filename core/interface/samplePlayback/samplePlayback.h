@@ -120,6 +120,7 @@ class cSamplePlayback : public ModuleBase
     void modEqualSliceNumber(int16_t val);
     void modSlicePlayThru(int16_t val);
     bool slice2ndScreenActive();
+    bool granular2ndScreenActive();
 
     void setDefault(uint8_t pos);
     void setDefaultStartPoint();
@@ -181,6 +182,7 @@ class cSamplePlayback : public ModuleBase
     elapsedMicros refreshPlayProgressValue = 0;
     float playPitch = 1.0;
     bool sliceScreenMode2;
+    bool granularScreenMode2 = false; // granular page 2: Scan, Heads, Spread
     int8_t displayedTrack = -1;
 
     strInstrument* editorInstrument = nullptr;
@@ -253,6 +255,8 @@ class cSamplePlayback : public ModuleBase
     char shapeText[15];
     char loopTypeText[15];
     char granularScanText[15];
+    char granularHeadsText[15];
+    char granularSpreadText[15];
 
     uint16_t granularPositionInSpectrum;
     float grainLengthMs;
@@ -262,6 +266,8 @@ class cSamplePlayback : public ModuleBase
     void showShapeText();
     void showLoopTypeText();
     void showGranularScanValue();
+    void showGranularHeadsValue();
+    void showGranularSpreadValue();
 
     float samplePosToTime(uint32_t pos);
 

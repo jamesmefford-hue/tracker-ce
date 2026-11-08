@@ -598,19 +598,33 @@ struct strInstrument
 {
     uint8_t isActive;
 
-    // Granular Scan lives in what used to be padding before 'sample' (offsets 1..3), so the
-    // 372-byte .pti layout is unchanged. Old files may hold leftover bytes there, so the value
-    // only counts when the marker byte matches; anything else reads as Scan 0 (off).
+    // Granular Scan / Heads / Spread live in what used to be padding (offsets 1..3 and 61), so
+    // the 372-byte .pti layout is unchanged. Old files may hold leftover bytes there, so the
+    // values only count when the marker byte matches; otherwise they read as Scan off,
+    // 1 head, Spread 0. The first edit clears all of them before setting the marker.
     static constexpr uint8_t kGranularScanMarker = 0xA5;
     static constexpr int8_t kGranularScanMin = -100;
     static constexpr int8_t kGranularScanMax = 100;
+    static constexpr uint8_t kGranularHeadsMax = 3;
+    static constexpr uint8_t kGranularSpreadMax = 100;
     uint8_t granularScanMarker;
     int8_t granularScanValue;
-    uint8_t reservedAfterScan;
+    uint8_t granularHeadsValue;
+
+    bool hasGranularModFields() const { return granularScanMarker == kGranularScanMarker; }
+    void claimGranularModFields()
+    {
+        if (hasGranularModFields())
+            return;
+        granularScanValue = 0;
+        granularHeadsValue = 1;
+        granularSpreadValue = 0;
+        granularScanMarker = kGranularScanMarker;
+    }
 
     int8_t getGranularScan() const
     {
-        if (granularScanMarker != kGranularScanMarker)
+        if (!hasGranularModFields())
             return 0;
         if (granularScanValue < kGranularScanMin)
             return kGranularScanMin;
@@ -620,8 +634,30 @@ struct strInstrument
     }
     void setGranularScan(int8_t value)
     {
-        granularScanMarker = kGranularScanMarker;
+        claimGranularModFields();
         granularScanValue = value;
+    }
+    uint8_t getGranularHeads() const
+    {
+        if (!hasGranularModFields() || granularHeadsValue < 1)
+            return 1;
+        return (granularHeadsValue > kGranularHeadsMax) ? kGranularHeadsMax : granularHeadsValue;
+    }
+    void setGranularHeads(uint8_t value)
+    {
+        claimGranularModFields();
+        granularHeadsValue = value;
+    }
+    uint8_t getGranularSpread() const
+    {
+        if (!hasGranularModFields())
+            return 0;
+        return (granularSpreadValue > kGranularSpreadMax) ? kGranularSpreadMax : granularSpreadValue;
+    }
+    void setGranularSpread(uint8_t value)
+    {
+        claimGranularModFields();
+        granularSpreadValue = value;
     }
 
     struct strSampleBankSlot
@@ -644,6 +680,7 @@ struct strInstrument
     void setStreamPreferred(bool streamed) { name[3] = streamed ? kStreamPrefMagic : 0; }
 
     uint8_t playMode;
+    uint8_t granularSpreadValue; // former padding, see kGranularScanMarker
     uint16_t startPoint;
     uint16_t loopPoint1;
     uint16_t loopPoint2;
@@ -757,16 +794,18 @@ struct strInstrument
 };
 static_assert(sizeof(strInstrument) == 372, "strInstrument size must remain 372 bytes");
 static_assert(offsetof(strInstrument, sample) == 4, "Granular Scan must stay inside the old padding");
+static_assert(offsetof(strInstrument, startPoint) == 62, "Granular Spread must stay inside the old padding");
 
 //----------------------------------------------------------------------------------
 const strInstrument defaultInstrumentParams = {
     .isActive = 0,
     .granularScanMarker = 0,
     .granularScanValue = 0,
-    .reservedAfterScan = 0,
+    .granularHeadsValue = 1,
     .sample = { 0, {}, nullptr, 0, 2048, 0 },
     .name = {},
     .playMode = playModeSingleShot,
+    .granularSpreadValue = 0,
     .startPoint = 0,
     .loopPoint1 = 1,
     .loopPoint2 = MAX_16BIT - 1,

@@ -237,13 +237,28 @@ void cSamplePlayback::showDefaultScreen()
         }
         else if (editorInstrument->playMode == playModeGranular)
         {
+            // label 5 is "More": page 1 = Position/Length/Shape/Loop, page 2 = Scan/Heads/Spread
+            display.setAddControlStyle(label[5], controlStyleSpecialFx2);
+            display.setControlData(label[5], &labelDataMore);
+            display.setControlColors(label[5], display.getTheme().moreButtonColors);
+            labelDataMore.dotIndicator.current = granularScreenMode2 ? 1 : 0;
+
             display.setControlText(label[0], "Preview");
-            display.setControlText(label[1], "Position");
-            display.setControlText(label[2], "Length");
-            display.setControlText(label[3], "Shape");
-            display.setControlText(label[4], "Loop");
-            display.setControlText(label[5], "Scan");
-            display.setControlColors(label[5], display.getTheme().activeLabelsColors);
+            if (!granularScreenMode2)
+            {
+                display.setControlText(label[1], "Position");
+                display.setControlText(label[2], "Length");
+                display.setControlText(label[3], "Shape");
+                display.setControlText(label[4], "Loop");
+            }
+            else
+            {
+                display.setControlText(label[1], "Scan");
+                display.setControlText(label[2], "Heads");
+                display.setControlText(label[3], "Spread");
+                display.setControlText(label[4], "");
+            }
+            display.setControlText(label[5], "More");
 
             display.setControlShow(granularCursor);
             display.refreshControl(granularCursor);
@@ -254,11 +269,20 @@ void cSamplePlayback::showDefaultScreen()
             display.setControlHide(slicePointsControl);
             display.refreshControl(slicePointsControl);
 
-            showGranularPositionValue();
-            showGrainLengthValue();
-            showShapeText();
-            showLoopTypeText();
-            showGranularScanValue();
+            showGranularPositionValue(); // also draws the grain cursor
+            if (!granularScreenMode2)
+            {
+                showGrainLengthValue();
+                showShapeText();
+                showLoopTypeText();
+            }
+            else
+            {
+                showGranularScanValue();
+                showGranularHeadsValue();
+                showGranularSpreadValue();
+                display.setControlText2(label[4], "");
+            }
             display.setControlText2(label[0], "-");
         }
         else
@@ -754,6 +778,9 @@ void cSamplePlayback::showGranularPositionValue()
     display.setControlShow(granularCursor);
     display.refreshControl(granularCursor);
 
+    if (granular2ndScreenActive())
+        return;
+
     display.setControlText2(label[1], granularPositionTextValue);
     display.setControlShow(label[1]);
     display.refreshControl(label[1]);
@@ -767,6 +794,9 @@ void cSamplePlayback::showGrainLengthValue()
 
     showGranularPositionValue();
 
+    if (granular2ndScreenActive())
+        return;
+
     display.setControlText2(label[2], grainLengthTextValue);
     display.setControlShow(label[2]);
     display.refreshControl(label[2]);
@@ -774,6 +804,8 @@ void cSamplePlayback::showGrainLengthValue()
 
 void cSamplePlayback::showShapeText()
 {
+    if (granular2ndScreenActive())
+        return;
     switch (editorInstrument->granular.shape)
     {
         case granularShapeSquare: strcpy(shapeText, "Square"); break;
@@ -789,6 +821,8 @@ void cSamplePlayback::showShapeText()
 
 void cSamplePlayback::showLoopTypeText()
 {
+    if (granular2ndScreenActive())
+        return;
     switch (editorInstrument->granular.type)
     {
         case granularLoopForward: strcpy(loopTypeText, "Forward"); break;
@@ -804,6 +838,9 @@ void cSamplePlayback::showLoopTypeText()
 
 void cSamplePlayback::showGranularScanValue()
 {
+    if (!granular2ndScreenActive())
+        return;
+
     int scan = editorInstrument->getGranularScan();
 
     if (scan == 0)
@@ -811,9 +848,33 @@ void cSamplePlayback::showGranularScanValue()
     else
         sprintf(granularScanText, "%+d%%", scan);
 
-    display.setControlText2(label[5], granularScanText);
-    display.setControlShow(label[5]);
-    display.refreshControl(label[5]);
+    display.setControlText2(label[1], granularScanText);
+    display.setControlShow(label[1]);
+    display.refreshControl(label[1]);
+}
+
+void cSamplePlayback::showGranularHeadsValue()
+{
+    if (!granular2ndScreenActive())
+        return;
+
+    sprintf(granularHeadsText, "%d", (int)editorInstrument->getGranularHeads());
+
+    display.setControlText2(label[2], granularHeadsText);
+    display.setControlShow(label[2]);
+    display.refreshControl(label[2]);
+}
+
+void cSamplePlayback::showGranularSpreadValue()
+{
+    if (!granular2ndScreenActive())
+        return;
+
+    sprintf(granularSpreadText, "%d%%", (int)editorInstrument->getGranularSpread());
+
+    display.setControlText2(label[3], granularSpreadText);
+    display.setControlShow(label[3]);
+    display.refreshControl(label[3]);
 }
 
 float cSamplePlayback::samplePosToTime(uint32_t pos)

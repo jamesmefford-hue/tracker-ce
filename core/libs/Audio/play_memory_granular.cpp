@@ -100,6 +100,16 @@ AUDIO_CORE_FLASH void AudioPlayMemory::playGranular(uint8_t instrIdx, int8_t not
     if (mtProject.instrument[instrIdx].getGranularScan() != 0)
         granularPositionRefreshFlag = 1;
 
+    // Extra heads start their first grain part-way through, so grains overlap evenly
+    {
+        const uint8_t heads = mtProject.instrument[instrIdx].getGranularHeads();
+        for (uint8_t h = 0; h < kMaxExtraGranularHeads; h++)
+        {
+            extraGranularHeads[h] = strExtraGranularHead();
+            extraGranularHeads[h].startPhase = ((uint32_t)(h + 1) << 16) / heads;
+        }
+    }
+
     playing = 1;
     //	__enable_irq();
     AudioInterrupts();
@@ -107,12 +117,122 @@ AUDIO_CORE_FLASH void AudioPlayMemory::playGranular(uint8_t instrIdx, int8_t not
 
 AUDIO_CORE_FLASH audio_block_t* AudioPlayMemory::updateGranular()
 {
+    audio_block_t* block = nullptr;
     switch (granularLoopType)
     {
-        case granularLoopForward: return updateGranularLoopForward(); break;
-        case granularLoopBackward: return updateGranularLoopBackward(); break;
-        case granularLoopPingPong: return updateGranularLoopPingPong(); break;
+        case granularLoopForward: block = updateGranularLoopForward(); break;
+        case granularLoopBackward: block = updateGranularLoopBackward(); break;
+        case granularLoopPingPong: block = updateGranularLoopPingPong(); break;
         default: return nullptr; break;
+    }
+
+    if (block != nullptr)
+        mixExtraGranularHeads(block);
+
+    return block;
+}
+
+// Heads 2 and 3: extra grains read from the same sample and mixed into the main grain.
+// They follow the main grain's position, length, shape and pitch; Spread offsets each head
+// by up to (head / heads) of the whole sample. Loop type Backward or the Reverse FX play
+// them backwards; PingPong plays them forwards.
+AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* block)
+{
+    const strInstrument& instr = mtProject.instrument[currentInstrIdx];
+    const uint8_t heads = instr.getGranularHeads();
+
+    // Streamed samples are not fully in RAM, so extra heads cannot read them directly
+    if (heads < 2 || currentIsStreamed || currentStartAddress == nullptr ||
+        currentSampleLength < 4 || !playing)
+        return;
+
+    const int16_t* data = (const int16_t*)currentStartAddress;
+    const uint32_t sampleLength = currentSampleLength;
+
+    uint32_t grainLength = (currentGranularLength >= MIN_GRANULAR_LENGTH)
+                             ? currentGranularLength
+                             : instr.granular.grainLength;
+    if (grainLength > sampleLength - 1)
+        grainLength = sampleLength - 1;
+    if (grainLength < 2)
+        return;
+
+    const bool backwards = (reverseDirectionFlag != 0) != (granularLoopType == granularLoopBackward);
+    const bool isSquareEnv = (granularEnvelopeTab == squareTab);
+    const uint32_t spread = instr.getGranularSpread();
+
+    const uint32_t pitchInt = (uint32_t)pitchControl;
+    const uint32_t pitchFrac = (uint32_t)((pitchControl - (float)pitchInt) * 65536.0f);
+
+    // Keep the total level close to one head: 1/sqrt(heads) in Q15
+    const int32_t mixGain = (heads == 2) ? 23170 : 18919;
+
+    int32_t mix[AUDIO_BLOCK_SAMPLES];
+    for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
+        mix[i] = block->data[i];
+
+    for (uint8_t h = 0; h < heads - 1; h++)
+    {
+        strExtraGranularHead& head = extraGranularHeads[h];
+
+        for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
+        {
+            if (head.grainLength == 0 || head.counter >= head.grainLength)
+            {
+                // New grain around the main position, offset by Spread for this head
+                const uint32_t offset =
+                  (uint32_t)(((uint64_t)spread * (h + 1) << 32) / (100u * heads));
+                const uint32_t position = ((uint32_t)currentGranularPosition << 16) + offset;
+                const uint32_t center = (uint32_t)(((uint64_t)position * sampleLength) >> 32);
+
+                uint32_t start = (center > grainLength / 2) ? center - grainLength / 2 : 0;
+                if (start + grainLength >= sampleLength)
+                    start = sampleLength - 1 - grainLength;
+
+                const uint32_t overshoot =
+                  (head.grainLength != 0) ? head.counter - head.grainLength : 0;
+
+                head.grainStart = start;
+                head.grainLength = grainLength;
+                head.counter = (head.startPhase != 0)
+                                 ? (uint32_t)(((uint64_t)head.startPhase * grainLength) >> 16)
+                                 : overshoot;
+                head.startPhase = 0;
+                if (head.counter >= grainLength)
+                    head.counter = 0;
+                head.envStep = ((uint32_t)(GRANULAR_LOOKUP_SIZE - 1) << 16) / grainLength;
+            }
+
+            const uint32_t idx = backwards ? (head.grainLength - 1 - head.counter) : head.counter;
+            const int16_t* p = data + head.grainStart + idx;
+            int32_t s = p[0];
+            const int32_t next = backwards ? ((idx > 0) ? p[-1] : s) : p[1];
+            s += (int32_t)((((int32_t)(head.fraction >> 2)) * (next - s)) >> 14);
+
+            if (!isSquareEnv)
+            {
+                uint32_t envIdx = (uint32_t)(((uint64_t)head.counter * head.envStep) >> 16);
+                if (envIdx > GRANULAR_LOOKUP_SIZE - 1)
+                    envIdx = GRANULAR_LOOKUP_SIZE - 1;
+                s = (s * granularEnvelopeTab[envIdx]) >> 16;
+            }
+
+            mix[i] += s;
+
+            head.fraction += pitchFrac;
+            head.counter += pitchInt + (head.fraction >> 16);
+            head.fraction &= 0xFFFF;
+        }
+    }
+
+    for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
+    {
+        int32_t v = (mix[i] * mixGain) >> 15;
+        if (v > 32767)
+            v = 32767;
+        else if (v < -32768)
+            v = -32768;
+        block->data[i] = (int16_t)v;
     }
 }
 
