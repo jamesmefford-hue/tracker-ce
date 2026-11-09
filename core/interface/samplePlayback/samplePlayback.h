@@ -53,6 +53,8 @@ class cSamplePlayback : public ModuleBase
         granularCursor = -1;
         granularHeadCursor[0] = -1;
         granularHeadCursor[1] = -1;
+        granularHeadProgress[0] = -1;
+        granularHeadProgress[1] = -1;
         spectrumControl[0] = -1;
         spectrumControl[1] = -1;
         pointsControl = -1;
@@ -156,7 +158,8 @@ class cSamplePlayback : public ModuleBase
     hControl frameControl;
     hControl progressCursor;
     hControl granularCursor;
-    hControl granularHeadCursor[2]; // granular Heads 2 and 3
+    hControl granularHeadCursor[2];   // granular Heads 2 and 3
+    hControl granularHeadProgress[2]; // moving playheads of granular Heads 2 and 3
     hControl wtPositionCursor;
     hControl bgLabel;
 
@@ -181,6 +184,7 @@ class cSamplePlayback : public ModuleBase
     uint8_t refreshSpectrumProgress = 0;
     uint32_t playProgressValue = 0;      // 0 - MAX_LEN_RECORD
     uint16_t playProgressInSpectrum = 0; // 0 - 600
+    uint16_t granularHeadProgressInSpectrum[2] = { 0, 0 }; // Heads 2 and 3, 0 - 600
     uint8_t loopDirection = 0;
     elapsedMicros refreshPlayProgressValue = 0;
     float playPitch = 1.0;
@@ -206,7 +210,8 @@ class cSamplePlayback : public ModuleBase
 
     strLineIndicatorSelection lineIndicatorSelection;
     strLineIndicatorSelection granularHeadSelection[2];
-    uint32_t granularHeadColors[2][2]; // line, grain zone
+    uint32_t granularHeadColors[2][2];         // line, grain zone
+    uint32_t granularHeadProgressColors[2][2]; // unused, playhead
 
     //----------------------------------
     // lista play mode

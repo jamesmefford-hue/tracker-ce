@@ -101,6 +101,7 @@ class AudioPlayMemory : public AudioStream
     // Granular grain centre for head 0 (main), 1 or 2 over the whole sample (0-65535).
     // Returns false when that head is not playing.
     bool getGranularHeadPosition(uint8_t head, uint16_t& position);
+    bool getGranularHeadPlayPosition(uint8_t head, uint16_t& position);
     int16_t* getStartAddresIfPlaying();
     uint32_t getLengthIfPlaying();
     void setInterpolationEnable(bool value);
@@ -461,6 +462,7 @@ class AudioPlayMemory : public AudioStream
         uint32_t startPhase = 0;   // where in its first grain this head starts (16-bit fraction)
         uint32_t envStep = 0;      // envelope table step per grain sample (16.16)
         uint16_t position = 0;     // centre of the current grain over the whole sample (0-65535)
+        uint16_t playPosition = 0; // where this head is reading now, over the whole sample
     } extraGranularHeads[kMaxExtraGranularHeads];
     uint8_t granularPositionRefreshFlag = 1; // pozycja jest aktualizowana gdy nastepuje przejscie
                                              // pętli(audio) i ustawiona jest ta flaga

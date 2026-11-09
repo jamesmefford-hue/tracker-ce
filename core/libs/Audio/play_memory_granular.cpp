@@ -236,6 +236,12 @@ AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* bloc
             head.counter += pitchInt + (head.fraction >> 16);
             head.fraction &= 0xFFFF;
         }
+
+        // Read position for the on-screen playhead of this head
+        uint32_t counter = (head.counter < head.grainLength) ? head.counter : head.grainLength - 1;
+        const uint32_t readIdx =
+          head.grainStart + (headBackwards ? (head.grainLength - 1 - counter) : counter);
+        head.playPosition = (uint16_t)(((uint64_t)readIdx * 65535u) / sampleLength);
     }
 
     for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++)

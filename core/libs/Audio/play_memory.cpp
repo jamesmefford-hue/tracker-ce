@@ -1078,6 +1078,15 @@ bool AudioPlayMemory::getGranularHeadPosition(uint8_t head, uint16_t& position)
     position = extraGranularHeads[head - 1].position;
     return true;
 }
+// Where an extra granular head (1 or 2) is reading right now, over the whole sample
+bool AudioPlayMemory::getGranularHeadPlayPosition(uint8_t head, uint16_t& position)
+{
+    if (head == 0 || !getGranularHeadPosition(head, position))
+        return false;
+
+    position = extraGranularHeads[head - 1].playPosition;
+    return true;
+}
 int16_t* AudioPlayMemory::getStartAddresIfPlaying()
 {
     return playing ? (int16_t*)currentStartAddress : nullptr;

@@ -2212,6 +2212,11 @@ bool playerEngine ::getGranularHeadPosition(uint8_t head, uint16_t& position)
     return playMemPtr[0]->getGranularHeadPosition(head, position); // same for all channels
 }
 
+bool playerEngine ::getGranularHeadPlayPosition(uint8_t head, uint16_t& position)
+{
+    return playMemPtr[0]->getGranularHeadPlayPosition(head, position); // same for all channels
+}
+
 int16_t* playerEngine ::getWaveStartAddressIfPlaying(int channel)
 {
     return playMemPtr[channel]->getStartAddresIfPlaying();

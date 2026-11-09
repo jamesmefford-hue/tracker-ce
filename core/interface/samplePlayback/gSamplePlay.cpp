@@ -112,6 +112,16 @@ void cSamplePlayback::initDisplayControls()
         granularHeadCursor[h] = display.createControl<cLineIndicator>(&prop);
     }
 
+    // Moving playheads of Heads 2 and 3, in the same colours as their cursors
+    for (uint8_t h = 0; h < 2; h++)
+    {
+        granularHeadProgressColors[h][0] = granularHeadColors[h][0];
+        granularHeadProgressColors[h][1] = granularHeadColors[h][0];
+        prop.data = nullptr;
+        prop.colors = granularHeadProgressColors[h];
+        granularHeadProgress[h] = display.createControl<cProgressCursor>(&prop);
+    }
+
     prop.data = &points;
     prop.colors = nullptr;
     pointsControl = display.createControl<cPoints>(&prop);
@@ -184,6 +194,11 @@ void cSamplePlayback::showDefaultScreen()
     {
         display.setControlShow(progressCursor);
         display.refreshControl(progressCursor);
+        for (uint8_t h = 0; h < 2; h++)
+        {
+            display.setControlShow(granularHeadProgress[h]);
+            display.refreshControl(granularHeadProgress[h]);
+        }
 
         if ((editorInstrument->playMode == playModeSlice) ||
             (editorInstrument->playMode == playModeBeatSlice))
@@ -353,6 +368,11 @@ void cSamplePlayback::showDefaultScreen()
         // cursor
         display.setControlHide(progressCursor);
         display.refreshControl(progressCursor);
+        for (uint8_t h = 0; h < 2; h++)
+        {
+            display.setControlHide(granularHeadProgress[h]);
+            display.refreshControl(granularHeadProgress[h]);
+        }
 
         display.setControlHide(granularCursor);
         display.refreshControl(granularCursor);
@@ -394,6 +414,8 @@ void cSamplePlayback::hideUselessControls()
     display.setControlHide(granularHeadCursor[0]);
     display.setControlHide(granularHeadCursor[1]);
     display.setControlHide(progressCursor);
+    display.setControlHide(granularHeadProgress[0]);
+    display.setControlHide(granularHeadProgress[1]);
     display.setControlHide(wtPositionCursor);
     display.setControlHide(wtPositionCursor);
     display.setControlHide(spectrumControl[0]);

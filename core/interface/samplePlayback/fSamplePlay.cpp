@@ -175,6 +175,11 @@ void cSamplePlayback::update()
     {
         display.setControlValue(progressCursor, playProgressInSpectrum);
         display.refreshControl(progressCursor);
+        for (uint8_t h = 0; h < 2; h++)
+        {
+            display.setControlValue(granularHeadProgress[h], granularHeadProgressInSpectrum[h]);
+            display.refreshControl(granularHeadProgress[h]);
+        }
         refreshSpectrumProgress = 0;
     }
 }
@@ -606,6 +611,8 @@ void cSamplePlayback::onEndTrackDisplay()
     {
         playProgressValue = 0;
         playProgressInSpectrum = 0;
+        granularHeadProgressInSpectrum[0] = 0;
+        granularHeadProgressInSpectrum[1] = 0;
         refreshSpectrumProgress = 1;
 
         if ((SP->editorInstrument->playMode != playModeSlice) &&
@@ -1868,6 +1875,8 @@ static void changePlayModeSelection(int16_t value)
         mtPadBoard.cutAllInstrument();
         SP->playProgressValue = 0;
         SP->playProgressInSpectrum = 0;
+        SP->granularHeadProgressInSpectrum[0] = 0;
+        SP->granularHeadProgressInSpectrum[1] = 0;
         SP->refreshSpectrumProgress = 1;
         SP->isPlayingSample = 0;
         SP->hidePreviewValue();
@@ -2793,17 +2802,35 @@ void cSamplePlayback::calcPlayProgressValue()
         refreshPlayProgressValue = 0;
         playProgressValue = instrumentPlayer[displayedTrack].getWavePosition();
 
-        if (zoom.zoomValue == 1.0)
-            playProgressInSpectrum = (600 * playProgressValue) / MAX_16BIT;
-        else if (zoom.zoomValue > 1.0)
+        // Sample position (0-65535) to a spot on the 600 px waveform; 0 hides the line
+        auto toSpectrum = [this](uint32_t value, uint16_t current) -> uint16_t
         {
-            if ((int32_t)playProgressValue < zoom.zoomStart ||
-                (int32_t)playProgressValue > zoom.zoomEnd)
-                playProgressInSpectrum = 0;
+            if (zoom.zoomValue == 1.0)
+                return (600 * value) / MAX_16BIT;
+            if (zoom.zoomValue > 1.0)
+            {
+                if ((int32_t)value < zoom.zoomStart || (int32_t)value > zoom.zoomEnd)
+                    return 0;
+                return mapClamped<int>(value, zoom.zoomStart, zoom.zoomEnd, 0, 600);
+            }
+            return current;
+        };
+
+        playProgressInSpectrum = toSpectrum(playProgressValue, playProgressInSpectrum);
+
+        // Granular Heads 2 and 3 get their own moving playheads
+        for (uint8_t h = 0; h < 2; h++)
+        {
+            uint16_t headPlay = 0;
+            if (editorInstrument->playMode == playModeGranular &&
+                instrumentPlayer[displayedTrack].getGranularHeadPlayPosition(h + 1, headPlay))
+            {
+                granularHeadProgressInSpectrum[h] =
+                  toSpectrum(headPlay, granularHeadProgressInSpectrum[h]);
+            }
             else
             {
-                playProgressInSpectrum =
-                  mapClamped<int>(playProgressValue, zoom.zoomStart, zoom.zoomEnd, 0, 600);
+                granularHeadProgressInSpectrum[h] = 0;
             }
         }
 
