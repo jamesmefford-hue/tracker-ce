@@ -178,9 +178,13 @@ class Sequencer
             FX_TYPE_R1,
             FX_TYPE_GRANULAR_LENGTH = FX_TYPE_R1,
             FX_TYPE_R2,
+            FX_TYPE_GRAIN_SCAN = FX_TYPE_R2,
             FX_TYPE_R3,
+            FX_TYPE_GRAIN_JITTER = FX_TYPE_R3,
             FX_TYPE_R7,
+            FX_TYPE_GRAIN_SPREAD = FX_TYPE_R7,
             FX_TYPE_R8,
+            FX_TYPE_GRAIN_SYNC = FX_TYPE_R8,
             FX_TYPE_R9,
 
         };

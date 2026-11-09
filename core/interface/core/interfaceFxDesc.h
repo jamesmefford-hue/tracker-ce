@@ -245,6 +245,25 @@ const char* const fxDescriptions[FX_COUNT] = {
     "Sets the Grain Length for an Instrument in Granular Playback mode.\n\n"
     "0-50% maps 1ms to 100ms, 50-100% maps 100ms to 1000ms (clamped to sample length).\n\n"
     "From 0% to 100%.",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_SCAN,
+    "Destination: Sample \n\n"
+    "Sets Granular Scan: how fast the grain moves through the sample.\n\n"
+    "0 freezes the grain, positive values move it forwards, negative backwards.\n\n"
+    "From -99 to 99.",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_JITTER,
+    "Destination: Sample \n\n"
+    "Sets Granular Jitter: each grain starts at a random spot around its head.\n\n"
+    "0 is off, 100 lets grains land anywhere in the sample.\n\n"
+    "From 0 to 100.",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_SPREAD,
+    "Destination: Sample \n\n"
+    "Sets Granular Spread: how far apart Heads 2 and 3 play from the main grain.\n\n"
+    "From 0 to 100.",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_SYNC,
+    "Destination: Sample \n\n"
+    "Starts grains in time with the song tempo.\n\n"
+    "OFF uses the instrument's free Density. 1/4, 1/8, 8T (1/8 triplet), 16, 16T and 32 "
+    "start a grain on each head at that note value.",
     // Sequencer::strFxConsts::enFxType::FX_TYPE_SEND_CC_A,
     "Destination: MIDI, Synth \n\nSends MIDI CC number set to A in MIDI Instrument Parameters."
     "\n"
@@ -537,6 +556,25 @@ const char* const fxDescriptions[FX_COUNT] = {
     "Sets the Grain Length for an Instrument in Granular Playback mode.\n\n"
     "0-50% maps 1ms to 100ms, 50-100% maps 100ms to 1000ms (clamped to sample length).\n\n"
     "From 0% to 100%.",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_SCAN,
+    "Destination: Sample \n\n"
+    "Sets Granular Scan: how fast the grain moves through the sample.\n\n"
+    "0 freezes the grain, positive values move it forwards, negative backwards.\n\n"
+    "From -99 to 99.",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_JITTER,
+    "Destination: Sample \n\n"
+    "Sets Granular Jitter: each grain starts at a random spot around its head.\n\n"
+    "0 is off, 100 lets grains land anywhere in the sample.\n\n"
+    "From 0 to 100.",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_SPREAD,
+    "Destination: Sample \n\n"
+    "Sets Granular Spread: how far apart Heads 2 and 3 play from the main grain.\n\n"
+    "From 0 to 100.",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_SYNC,
+    "Destination: Sample \n\n"
+    "Starts grains in time with the song tempo.\n\n"
+    "OFF uses the instrument's free Density. 1/4, 1/8, 8T (1/8 triplet), 16, 16T and 32 "
+    "start a grain on each head at that note value.",
     // Sequencer::strFxConsts::enFxType::FX_TYPE_SEND_CC_A,
     "Destination: MIDI \n\nSends MIDI CC number set to A in MIDI Instrument Parameters."
     "\n"

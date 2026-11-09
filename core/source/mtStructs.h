@@ -124,7 +124,7 @@ const uint8_t PATTERN_INDEX_MIN = 1;
 const uint8_t PATTERN_INDEX_MAX = 255;
 
 const uint8_t FX_MAX = 49;
-const uint8_t FX_COUNT = 46;
+const uint8_t FX_COUNT = 50;
 const uint8_t FX_COUNT_HIDDEN_FXes = 1; // ile fxów na końcu listy jest ukrytych
 
 const uint8_t FX_VALUE_MAX = 127;
@@ -607,7 +607,8 @@ struct strInstrument
     static constexpr int8_t kGranularScanMax = 100;
     static constexpr uint8_t kGranularHeadsMax = 3;
     static constexpr uint8_t kGranularSpreadMax = 100;
-    // Direction shares the Heads byte: heads in bits 0..3, direction in bits 4..5
+    // Direction and Density share the Heads byte: heads in bits 0..3, direction in bits 4..5,
+    // density in bits 6..7
     enum granularDirection : uint8_t
     {
         granularDirectionSame = 0,      // all heads move the main grain's way
@@ -663,14 +664,14 @@ struct strInstrument
     {
         if (!hasGranularModFields())
             return granularDirectionSame;
-        const uint8_t dir = granularHeadsValue >> kGranularDirectionShift;
+        const uint8_t dir = (granularHeadsValue >> kGranularDirectionShift) & 0x03;
         return (dir < granularDirectionCount) ? dir : (uint8_t)granularDirectionSame;
     }
     void setGranularDirection(uint8_t value)
     {
         claimGranularModFields();
-        granularHeadsValue = (granularHeadsValue & kGranularHeadsMask) |
-                             (uint8_t)(value << kGranularDirectionShift);
+        granularHeadsValue = (granularHeadsValue & ~(uint8_t)(0x03 << kGranularDirectionShift)) |
+                             (uint8_t)((value & 0x03) << kGranularDirectionShift);
     }
     // True when extra head h (0 = head 2, 1 = head 3) moves against the main grain
     bool isGranularHeadReversed(uint8_t h) const
@@ -703,13 +704,84 @@ struct strInstrument
     static constexpr uint8_t kGranularRateMask = 0x0F;
     static constexpr uint8_t kGranularPitchShift = 4;
 
-    bool hasGranularMotionFields() const { return granularMotionMarker == kGranularMotionMarker; }
+    // Marker 0x5B also covers Jitter (offset 257, also former padding). Instruments saved with
+    // 0x5A have Rate/Pitch but no Jitter yet; they are upgraded on the first edit.
+    static constexpr uint8_t kGranularMotionMarkerJitter = 0x5B;
+    bool hasGranularMotionFields() const
+    {
+        return granularMotionMarker == kGranularMotionMarker ||
+               granularMotionMarker == kGranularMotionMarkerJitter;
+    }
+    bool hasGranularJitterField() const { return granularMotionMarker == kGranularMotionMarkerJitter; }
     void claimGranularMotionFields()
     {
-        if (hasGranularMotionFields())
+        if (hasGranularJitterField())
             return;
-        granularMotionValue = 0;
-        granularMotionMarker = kGranularMotionMarker;
+        if (!hasGranularMotionFields())
+            granularMotionValue = 0;
+        granularJitterValue = 0;
+        granularMotionMarker = kGranularMotionMarkerJitter;
+    }
+
+    // Jitter: each grain starts at a random offset of up to +/- Jitter/2 % of the sample
+    static constexpr uint8_t kGranularJitterMax = 100;
+    uint8_t getGranularJitter() const
+    {
+        if (!hasGranularJitterField())
+            return 0;
+        return (granularJitterValue > kGranularJitterMax) ? kGranularJitterMax : granularJitterValue;
+    }
+    void setGranularJitter(uint8_t value)
+    {
+        claimGranularMotionFields();
+        granularJitterValue = value;
+    }
+
+    // Density: how many grains of each head overlap, or tempo-synced grain timing. Auto keeps
+    // the shape's own choice (Triangle 2, others 1); 1x, 2x, 3x set it for every shape; the
+    // note values start each head's grains in time with the song. Stored in former padding
+    // inside the sample struct with its own marker (see sample.granularTimingMarker).
+    enum granularDensity : uint8_t
+    {
+        granularDensityAuto = 0,
+        granularDensity1,
+        granularDensity2,
+        granularDensity3,
+        granularSync4,   // 1/4
+        granularSync8,   // 1/8
+        granularSync8T,  // 1/8 triplet
+        granularSync16,  // 1/16
+        granularSync16T, // 1/16 triplet
+        granularSync32,  // 1/32
+        granularDensityCount
+    };
+    static constexpr uint8_t kGranularTimingMarker = 0xC3;
+    uint8_t getGranularDensity() const
+    {
+        if (sample.granularTimingMarker != kGranularTimingMarker ||
+            sample.granularTimingValue >= granularDensityCount)
+            return granularDensityAuto;
+        return sample.granularTimingValue;
+    }
+    void setGranularDensity(uint8_t value)
+    {
+        sample.granularTimingValue = value;
+        sample.granularTimingMarker = kGranularTimingMarker;
+    }
+    static bool isGranularSync(uint8_t density) { return density >= granularSync4 && density < granularDensityCount; }
+    // Grain spacing of a tempo-synced Density, in beats (quarter notes)
+    static float granularSyncBeats(uint8_t density)
+    {
+        switch (density)
+        {
+            case granularSync4: return 1.0f;
+            case granularSync8: return 0.5f;
+            case granularSync8T: return 1.0f / 3.0f;
+            case granularSync16: return 0.25f;
+            case granularSync16T: return 1.0f / 6.0f;
+            case granularSync32: return 0.125f;
+            default: return 0.0f;
+        }
     }
     uint8_t getGranularRate() const
     {
@@ -775,6 +847,8 @@ struct strInstrument
     {
         uint8_t type; //;
         char file_name[32];
+        uint8_t granularTimingValue;  // former padding: granular Density / Sync
+        uint8_t granularTimingMarker; // former padding: kGranularTimingMarker when set
 
         int16_t* address;
         uint32_t length; // = 0;
@@ -826,6 +900,7 @@ struct strInstrument
     int8_t fineTune;
 
     uint8_t volume;
+    uint8_t granularJitterValue; // former padding, see kGranularMotionMarkerJitter
 
     uint16_t glide;
     int16_t panning; // = 50;
@@ -911,6 +986,13 @@ static_assert(offsetof(strInstrument, startPoint) == 62, "Granular Spread must s
 static_assert(offsetof(strInstrument, granularMotionValue) == 70 &&
                 offsetof(strInstrument, wavetableCurrentWindow) == 72,
               "Granular Rate/Pitch must stay inside the old padding");
+static_assert(offsetof(strInstrument::strSampleBankSlot, granularTimingMarker) == 34 &&
+                offsetof(strInstrument::strSampleBankSlot, address) == 36 &&
+                offsetof(strInstrument, name) == 56,
+              "Granular Density must stay inside the old sample padding");
+static_assert(offsetof(strInstrument, granularJitterValue) == 257 &&
+                offsetof(strInstrument, glide) == 258,
+              "Granular Jitter must stay inside the old padding");
 
 //----------------------------------------------------------------------------------
 const strInstrument defaultInstrumentParams = {
@@ -918,7 +1000,7 @@ const strInstrument defaultInstrumentParams = {
     .granularScanMarker = 0,
     .granularScanValue = 0,
     .granularHeadsValue = 1,
-    .sample = { 0, {}, nullptr, 0, 2048, 0 },
+    .sample = { 0, {}, 0, 0, nullptr, 0, 2048, 0 },
     .name = {},
     .playMode = playModeSingleShot,
     .granularSpreadValue = 0,
@@ -948,6 +1030,7 @@ const strInstrument defaultInstrumentParams = {
     .tune = 0,
     .fineTune = 0,
     .volume = 50,
+    .granularJitterValue = 0,
     .glide = 0,
     .panning = 50,
     .delaySend = 0,

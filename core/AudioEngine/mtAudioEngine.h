@@ -739,6 +739,16 @@ class playerEngine
     void endFxAmpEnv(uint8_t fx_n);
     void endFxFilterEnv(uint8_t fx_n);
     void endFxGranularLength(uint8_t fx_n);
+    // Grain Scan / Jitter / Spread / Sync pattern FX (param = AudioPlayMemory::granularFxParam)
+    void fxGrain(uint8_t param, int16_t value, uint8_t fx_n);
+    void endFxGrain(uint8_t param, uint8_t fx_n);
+    void applyGrainFx(uint8_t param);
+    int16_t grainFxSlot[AudioPlayMemory::granularFxCount][2] = {
+        { AudioPlayMemory::kGranularFxNone, AudioPlayMemory::kGranularFxNone },
+        { AudioPlayMemory::kGranularFxNone, AudioPlayMemory::kGranularFxNone },
+        { AudioPlayMemory::kGranularFxNone, AudioPlayMemory::kGranularFxNone },
+        { AudioPlayMemory::kGranularFxNone, AudioPlayMemory::kGranularFxNone }
+    };
     //*************************************************
     //************************* FX END HANDLE
     void endFxFilter(uint8_t fx_n);

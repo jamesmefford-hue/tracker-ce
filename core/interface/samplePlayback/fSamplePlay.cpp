@@ -88,6 +88,8 @@ static void modGranularSpread(int16_t value);
 static void modGranularDirection(int16_t value);
 static void modGranularRate(int16_t value);
 static void modGranularPitch(int16_t value);
+static void modGranularJitter(int16_t value);
+static void modGranularDensity(int16_t value);
 static bool granularPage2Encoder(int16_t value);
 static bool granularPage2Button(uint8_t place, uint8_t state);
 static bool granularPage2Left();
@@ -2704,7 +2706,35 @@ static void modGranularPitch(int16_t value)
     newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
 }
 
-// Granular pages 2 (Scan, Heads, Spread, Direction) and 3 (Rate, Pitch).
+static void modGranularJitter(int16_t value)
+{
+    int jitter = (int)SP->editorInstrument->getGranularJitter() + value;
+
+    if (jitter > strInstrument::kGranularJitterMax)
+        jitter = strInstrument::kGranularJitterMax;
+    else if (jitter < 0)
+        jitter = 0;
+
+    SP->editorInstrument->setGranularJitter((uint8_t)jitter);
+    SP->showGranularJitterValue();
+    newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
+}
+
+static void modGranularDensity(int16_t value)
+{
+    int density = (int)SP->editorInstrument->getGranularDensity() + value;
+
+    if (density > strInstrument::granularDensityCount - 1)
+        density = strInstrument::granularDensityCount - 1;
+    else if (density < 0)
+        density = 0;
+
+    SP->editorInstrument->setGranularDensity((uint8_t)density);
+    SP->showGranularDensityText();
+    newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
+}
+
+// Granular pages 2 (Scan, Heads, Spread, Direction) and 3 (Rate, Pitch, Jitter, Density).
 // Each returns true when it handled the input.
 static bool granularPage2Encoder(int16_t value)
 {
@@ -2717,6 +2747,8 @@ static bool granularPage2Encoder(int16_t value)
         {
             case 1: modGranularRate((value > 0) ? 1 : -1); break;
             case 2: modGranularPitch((value > 0) ? 1 : -1); break;
+            case 3: modGranularJitter(value); break;
+            case 4: modGranularDensity((value > 0) ? 1 : -1); break;
             case 6: return false; // Play Mode list works as on page 1
             default: break;
         }
@@ -2740,8 +2772,7 @@ static bool granularPage2Button(uint8_t place, uint8_t state)
     if (!SP->granular2ndScreenActive())
         return false;
 
-    const uint8_t lastPlace = (SP->granularScreenPage == 2) ? 2 : 4; // page 3 has Rate, Pitch
-    if ((place >= 1) && (place <= lastPlace) && (state == buttonPress || state == UINT8_MAX))
+    if ((place >= 1) && (place <= 4) && (state == buttonPress || state == UINT8_MAX))
     {
         SP->selectedPlace = place;
         SP->activateLabelsBorder();
@@ -2759,7 +2790,7 @@ static bool granularPage2Left()
         case 2: SP->selectedPlace = 1; break;
         case 3: SP->selectedPlace = 2; break;
         case 4: SP->selectedPlace = 3; break;
-        case 5: SP->selectedPlace = ((SP->granularScreenPage == 2) ? 2 : 4); break;
+        case 5: SP->selectedPlace = 4; break;
         case 6: SP->selectedPlace = 5; break;
         default: break;
     }
@@ -2776,7 +2807,7 @@ static bool granularPage2Right()
     {
         case 0: SP->selectedPlace = 1; break;
         case 1: SP->selectedPlace = 2; break;
-        case 2: SP->selectedPlace = ((SP->granularScreenPage == 2) ? 5 : 3); break;
+        case 2: SP->selectedPlace = 3; break;
         case 3: SP->selectedPlace = 4; break;
         case 4: SP->selectedPlace = 5; break;
         case 5: SP->selectedPlace = 6; break;
@@ -2927,6 +2958,10 @@ void cSamplePlayback::setDefault(uint8_t pos)
             modGranularRate(-(int)SP->editorInstrument->getGranularRate());
         else if (SP->selectedPlace == 2)
             modGranularPitch(-(int)SP->editorInstrument->getGranularPitch());
+        else if (SP->selectedPlace == 3)
+            modGranularJitter(-(int)SP->editorInstrument->getGranularJitter());
+        else if (SP->selectedPlace == 4)
+            modGranularDensity(-(int)SP->editorInstrument->getGranularDensity());
         return;
     }
 

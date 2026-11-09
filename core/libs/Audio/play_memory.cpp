@@ -649,7 +649,7 @@ void AudioPlayMemory::refreshGranularPosition()
     // Scan: each grain moves the position by Scan% of one grain length.
     // 100 = roughly normal speed, 50 = half, negative = backwards, 0 = frozen.
     // The position wraps around the sample (2^32 accumulator units = whole sample).
-    const int8_t scan = mtProject.instrument[currentInstrIdx].getGranularScan();
+    const int8_t scan = effectiveGranularScan(mtProject.instrument[currentInstrIdx]);
     const uint32_t scanSampleLength = mtProject.instrument[currentInstrIdx].sample.length;
     if ((scan != 0) && (scanSampleLength > 0))
     {

@@ -294,10 +294,8 @@ void cSamplePlayback::showDefaultScreen()
             {
                 display.setControlText(label[1], "Rate");
                 display.setControlText(label[2], "Pitch");
-                display.setControlText(label[3], "");
-                display.setControlText(label[4], "");
-                display.setControlText2(label[3], "");
-                display.setControlText2(label[4], "");
+                display.setControlText(label[3], "Jitter");
+                display.setControlText(label[4], "Density");
             }
             display.setControlText(label[5], "More");
 
@@ -328,6 +326,8 @@ void cSamplePlayback::showDefaultScreen()
             {
                 showGranularRateText();
                 showGranularPitchText();
+                showGranularJitterValue();
+                showGranularDensityText();
             }
             display.setControlText2(label[0], "-");
         }
@@ -1042,6 +1042,47 @@ void cSamplePlayback::showGranularPitchText()
     display.setControlText2(label[2], granularPitchText);
     display.setControlShow(label[2]);
     display.refreshControl(label[2]);
+}
+
+void cSamplePlayback::showGranularJitterValue()
+{
+    if (!granularPageActive(2))
+        return;
+
+    const int jitter = editorInstrument->getGranularJitter();
+    if (jitter == 0)
+        strcpy(granularJitterText, "Off");
+    else
+        sprintf(granularJitterText, "%d%%", jitter);
+
+    display.setControlText2(label[3], granularJitterText);
+    display.setControlShow(label[3]);
+    display.refreshControl(label[3]);
+}
+
+void cSamplePlayback::showGranularDensityText()
+{
+    if (!granularPageActive(2))
+        return;
+
+    // Grains of each head playing at once, or tempo-synced grain timing
+    switch (editorInstrument->getGranularDensity())
+    {
+        case strInstrument::granularDensity1: strcpy(granularDensityText, "1x"); break;
+        case strInstrument::granularDensity2: strcpy(granularDensityText, "2x"); break;
+        case strInstrument::granularDensity3: strcpy(granularDensityText, "3x"); break;
+        case strInstrument::granularSync4: strcpy(granularDensityText, "Sync 1/4"); break;
+        case strInstrument::granularSync8: strcpy(granularDensityText, "Sync 1/8"); break;
+        case strInstrument::granularSync8T: strcpy(granularDensityText, "Sync 1/8T"); break;
+        case strInstrument::granularSync16: strcpy(granularDensityText, "Sync 1/16"); break;
+        case strInstrument::granularSync16T: strcpy(granularDensityText, "Sync 1/16T"); break;
+        case strInstrument::granularSync32: strcpy(granularDensityText, "Sync 1/32"); break;
+        default: strcpy(granularDensityText, "Auto"); break;
+    }
+
+    display.setControlText2(label[4], granularDensityText);
+    display.setControlShow(label[4]);
+    display.refreshControl(label[4]);
 }
 
 float cSamplePlayback::samplePosToTime(uint32_t pos)

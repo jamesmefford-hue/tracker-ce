@@ -29,6 +29,7 @@
 
 #include "AudioStream.h"
 #include <algorithm>
+#include <cstdint>
 #include "VoiceStreamManager.h"
 #include "amplifier.h"
 #include "mtStructs.h"
@@ -259,12 +260,14 @@ class AudioPlayMemory : public AudioStream
 
     // Square grains get a short fade at each edge so grain boundaries don't click
     static constexpr int32_t kGranularSquareFade = 88; // samples, about 2 ms
-    static inline uint16_t granularSquareGain(int32_t pos, int32_t start, int32_t end)
+    // fadeLength is in sample frames read, so it grows with pitch to stay about 2 ms long
+    static inline uint16_t granularSquareGain(int32_t pos, int32_t start, int32_t end,
+                                              int32_t fadeLength = kGranularSquareFade)
     {
         const int32_t len = end - start;
         if (len <= 0)
             return 65535;
-        const int32_t fade = std::min<int32_t>(kGranularSquareFade, len / 4);
+        const int32_t fade = std::min<int32_t>(fadeLength, len / 4);
         const int32_t edge = std::min(pos - start, end - pos);
         if (edge <= 0)
             return 0;
@@ -273,6 +276,20 @@ class AudioPlayMemory : public AudioStream
         return (uint16_t)((edge * 65535) / fade);
     }
     int32_t granularMixGain = 32767; // current level of the mixed heads (Q15), ramped
+    // Heads adding up past full scale bend smoothly into the limit instead of clipping (which
+    // crackles). Below 3/4 of full scale the signal is untouched.
+    static inline int16_t granularSoftLimit(int32_t v)
+    {
+        constexpr int32_t knee = 24576;
+        constexpr int32_t room = 32767 - knee;
+        const int32_t a = (v < 0) ? -v : v;
+        if (a <= knee)
+            return (int16_t)v;
+        const int32_t over = a - knee;
+        const int32_t y = knee + (int32_t)(((int64_t)room * over) / (room + over));
+        return (int16_t)((v < 0) ? -y : y);
+    }
+    int32_t granularSquareFadeLength = kGranularSquareFade; // main grain, scaled by pitch
     audio_block_t* updateWavetable();
 
     // singleShot
@@ -487,11 +504,74 @@ class AudioPlayMemory : public AudioStream
         bool flip = false;         // PingPong: this grain plays the other way round
     } extraGranularHeads[kMaxExtraGranularHeads];
 
-    // Overlap (Triangle shape): every head plays a second "twin" grain half a grain behind its
-    // own, so the triangle envelopes add up to a steady level instead of dipping to silence at
-    // each grain. The main head's grains are then played here too, in step with its twin.
+    // Overlap (Density, or Triangle on Auto): every head plays "twin" grains spread evenly behind
+    // its own, so the envelopes add up to a steady level instead of dipping to silence at each
+    // grain. With overlap or Jitter the main head's grains are played here too.
+    // Pattern FX can override some granular settings of this voice (kGranularFxNone = not set)
+  public:
+    enum granularFxParam : uint8_t
+    {
+        granularFxScan,   // -100..100
+        granularFxJitter, // 0..100
+        granularFxSpread, // 0..100
+        granularFxSync,   // 0 = free density, else strInstrument::granularSync4 + value - 1
+        granularFxCount
+    };
+    static constexpr int16_t kGranularFxNone = INT16_MIN;
+    void setGranularFx(uint8_t param, int16_t value)
+    {
+        if (param >= granularFxCount)
+            return;
+        granularFxValue[param] = value;
+        // Scan set by FX: make sure the grain starts moving at its next boundary
+        if (param == granularFxScan && value != kGranularFxNone && value != 0)
+            granularPositionRefreshFlag = 1;
+    }
+
+  private:
+    int16_t granularFxValue[granularFxCount] = { kGranularFxNone,
+                                                 kGranularFxNone,
+                                                 kGranularFxNone,
+                                                 kGranularFxNone };
+    int8_t effectiveGranularScan(const strInstrument& instr) const
+    {
+        const int16_t fx = granularFxValue[granularFxScan];
+        return (fx != kGranularFxNone) ? (int8_t)fx : instr.getGranularScan();
+    }
+    uint8_t effectiveGranularJitter(const strInstrument& instr) const
+    {
+        const int16_t fx = granularFxValue[granularFxJitter];
+        return (fx != kGranularFxNone) ? (uint8_t)fx : instr.getGranularJitter();
+    }
+    uint8_t effectiveGranularSpread(const strInstrument& instr) const
+    {
+        const int16_t fx = granularFxValue[granularFxSpread];
+        return (fx != kGranularFxNone) ? (uint8_t)fx : instr.getGranularSpread();
+    }
+    uint8_t effectiveGranularDensity(const strInstrument& instr) const
+    {
+        const int16_t fx = granularFxValue[granularFxSync];
+        if (fx == kGranularFxNone)
+            return instr.getGranularDensity();
+        if (fx <= 0)
+        {
+            // Sync off: back to free-running grains
+            const uint8_t own = instr.getGranularDensity();
+            return strInstrument::isGranularSync(own) ? (uint8_t)strInstrument::granularDensityAuto
+                                                      : own;
+        }
+        return (uint8_t)(strInstrument::granularSync4 + fx - 1);
+    }
+
+    // Tempo sync: samples until each head (main, Head 2, Head 3) starts its next grain
+    float granularSyncCountdown[1 + kMaxExtraGranularHeads] = {};
+    bool granularSyncActive = false;
+
     strExtraGranularHead mainGranularStream;
-    strExtraGranularHead granularTwins[1 + kMaxExtraGranularHeads]; // main, Head 2, Head 3
+    static constexpr uint8_t kMaxGranularDensity = 3; // grains of one head playing at once
+    // [main, Head 2, Head 3][twin]: twin k starts when its head is k/density through a grain
+    strExtraGranularHead granularTwins[1 + kMaxExtraGranularHeads][kMaxGranularDensity - 1];
+    uint32_t granularRandom = 0x9E3779B9; // Jitter random state (xorshift)
     bool granularOverlapActive = false;
 
     struct strGrainContext
@@ -500,13 +580,16 @@ class AudioPlayMemory : public AudioStream
         uint32_t sampleLength;
         uint32_t grainLength;
         uint32_t position; // grain centre, 16.16 over the whole sample
+        uint32_t jitter;   // random offset range of new grains, 16.16 over the whole sample
         bool backwards;
         bool pingPong;
         bool square;
+        int32_t squareFade; // Square edge fade in sample frames read
         uint32_t pitchInt;
         uint32_t pitchFrac;
     };
-    int32_t nextGrainSample(strExtraGranularHead& stream, const strGrainContext& ctx, bool twin);
+    inline int32_t nextGrainSample(strExtraGranularHead& stream, const strGrainContext& ctx, bool twin)
+      __attribute__((always_inline));
     void updateGrainPlayPosition(strExtraGranularHead& stream, const strGrainContext& ctx);
     uint8_t granularPositionRefreshFlag = 1; // pozycja jest aktualizowana gdy nastepuje przejscie
                                              // pętli(audio) i ustawiona jest ta flaga

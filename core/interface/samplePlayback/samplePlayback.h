@@ -189,7 +189,7 @@ class cSamplePlayback : public ModuleBase
     elapsedMicros refreshPlayProgressValue = 0;
     float playPitch = 1.0;
     bool sliceScreenMode2;
-    uint8_t granularScreenPage = 0; // granular page 0: Position..Loop, 1: Scan..Direction, 2: Rate, Pitch
+    uint8_t granularScreenPage = 0; // granular page 0: Position..Loop, 1: Scan..Direction, 2: Rate..Density
     bool granularPageActive(uint8_t page) { return granular2ndScreenActive() && granularScreenPage == page; }
     int8_t displayedTrack = -1;
 
@@ -270,6 +270,8 @@ class cSamplePlayback : public ModuleBase
     char granularDirectionText[15];
     char granularRateText[15];
     char granularPitchText[15];
+    char granularJitterText[15];
+    char granularDensityText[15];
     elapsedMicros refreshGranularHeads = 0;
     char granularSpreadText[15];
 
@@ -286,6 +288,8 @@ class cSamplePlayback : public ModuleBase
     void showGranularDirectionText();
     void showGranularRateText();
     void showGranularPitchText();
+    void showGranularJitterValue();
+    void showGranularDensityText();
     void showGranularHeadCursors();
     void hideGranularHeadCursors();
     void setGranularCursorSelection(strLineIndicatorSelection& selection,

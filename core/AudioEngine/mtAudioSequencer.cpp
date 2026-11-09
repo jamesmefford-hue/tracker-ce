@@ -44,6 +44,10 @@ AUDIO_CORE_RAM void playerEngine::seqFx(uint8_t fx_id, uint8_t fx_val, uint8_t f
         fx_id == Sequencer::strFxConsts::FX_TYPE_OVERDRIVE ||
         fx_id == Sequencer::strFxConsts::FX_TYPE_TUNE ||
         fx_id == Sequencer::strFxConsts::FX_TYPE_GRANULAR_LENGTH ||
+        fx_id == Sequencer::strFxConsts::FX_TYPE_GRAIN_SCAN ||
+        fx_id == Sequencer::strFxConsts::FX_TYPE_GRAIN_JITTER ||
+        fx_id == Sequencer::strFxConsts::FX_TYPE_GRAIN_SPREAD ||
+        fx_id == Sequencer::strFxConsts::FX_TYPE_GRAIN_SYNC ||
         fx_id == Sequencer::strFxConsts::FX_TYPE_VOLUME));
     if (!skipEndFx)
     {
@@ -71,8 +75,18 @@ AUDIO_CORE_RAM void playerEngine::seqFx(uint8_t fx_id, uint8_t fx_val, uint8_t f
         case Sequencer::strFxConsts::FX_TYPE_OVERDRIVE: fxOverdrive(fx_val, fx_n); break;
         case Sequencer::strFxConsts::FX_TYPE_TUNE: fxTune(fx_val, fx_n); break;
         case Sequencer::strFxConsts::FX_TYPE_GRANULAR_LENGTH: fxGranularLength(fx_val, fx_n); break;
-        case Sequencer::strFxConsts::FX_TYPE_R7: break;
-        case Sequencer::strFxConsts::FX_TYPE_R8: break;
+        case Sequencer::strFxConsts::FX_TYPE_GRAIN_SCAN:
+            fxGrain(AudioPlayMemory::granularFxScan, (int16_t)fx_val - 99, fx_n);
+            break;
+        case Sequencer::strFxConsts::FX_TYPE_GRAIN_JITTER:
+            fxGrain(AudioPlayMemory::granularFxJitter, fx_val, fx_n);
+            break;
+        case Sequencer::strFxConsts::FX_TYPE_GRAIN_SPREAD:
+            fxGrain(AudioPlayMemory::granularFxSpread, fx_val, fx_n);
+            break;
+        case Sequencer::strFxConsts::FX_TYPE_GRAIN_SYNC:
+            fxGrain(AudioPlayMemory::granularFxSync, fx_val, fx_n);
+            break;
         case Sequencer::strFxConsts::FX_TYPE_R9: break;
         case Sequencer::strFxConsts::FX_TYPE_R30: fxAmpEnv(fx_val, fx_n); break;
         case Sequencer::strFxConsts::FX_TYPE_R31: fxFilterEnv(fx_val, fx_n); break;
@@ -129,8 +143,14 @@ AUDIO_CORE_RAM void playerEngine::endFx(uint8_t fx_id, uint8_t fx_n)
         case Sequencer::strFxConsts::FX_TYPE_OVERDRIVE: endFxOverdrive(fx_n); break;
         case Sequencer::strFxConsts::FX_TYPE_TUNE: endFxTune(fx_n); break;
         case Sequencer::strFxConsts::FX_TYPE_GRANULAR_LENGTH: endFxGranularLength(fx_n); break;
-        case Sequencer::strFxConsts::FX_TYPE_R7: break;
-        case Sequencer::strFxConsts::FX_TYPE_R8: break;
+        case Sequencer::strFxConsts::FX_TYPE_GRAIN_SCAN: endFxGrain(AudioPlayMemory::granularFxScan, fx_n); break;
+        case Sequencer::strFxConsts::FX_TYPE_GRAIN_JITTER:
+            endFxGrain(AudioPlayMemory::granularFxJitter, fx_n);
+            break;
+        case Sequencer::strFxConsts::FX_TYPE_GRAIN_SPREAD:
+            endFxGrain(AudioPlayMemory::granularFxSpread, fx_n);
+            break;
+        case Sequencer::strFxConsts::FX_TYPE_GRAIN_SYNC: endFxGrain(AudioPlayMemory::granularFxSync, fx_n); break;
         case Sequencer::strFxConsts::FX_TYPE_R9: break;
         case Sequencer::strFxConsts::FX_TYPE_R30: endFxAmpEnv(fx_n); break;
         case Sequencer::strFxConsts::FX_TYPE_R31: endFxFilterEnv(fx_n); break;
@@ -2846,4 +2866,32 @@ void playerEngine::syncFxAmpLFO()
         playMemPtr[channel]->envelopeSetIsRandom(isAmpRandom);
         playMemPtr[channel]->envelopeNoteOn(currentInstrument_idx, currentNote);
     }
+}
+
+//******* Grain Scan / Jitter / Spread / Sync pattern FX
+// Each FX slot keeps its own value; the most significant slot wins while both are set.
+void playerEngine::fxGrain(uint8_t param, int16_t value, uint8_t fx_n)
+{
+    if (param >= AudioPlayMemory::granularFxCount || fx_n > 1)
+        return;
+    grainFxSlot[param][fx_n] = value;
+    applyGrainFx(param);
+}
+
+void playerEngine::endFxGrain(uint8_t param, uint8_t fx_n)
+{
+    if (param >= AudioPlayMemory::granularFxCount || fx_n > 1)
+        return;
+    grainFxSlot[param][fx_n] = AudioPlayMemory::kGranularFxNone;
+    applyGrainFx(param);
+}
+
+void playerEngine::applyGrainFx(uint8_t param)
+{
+    const int16_t most = grainFxSlot[param][MOST_SIGNIFICANT_FX];
+    const int16_t value =
+      (most != AudioPlayMemory::kGranularFxNone) ? most : grainFxSlot[param][LEAST_SIGNIFICANT_FX];
+
+    for (auto* playMem : playMemPtr)
+        playMem->setGranularFx(param, value);
 }

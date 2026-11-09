@@ -993,7 +993,7 @@ void Sequencer::changeSelectionFxType(uint8_t index, int16_t value)
 
                 uint8_t previousType = _fx->type;
 
-                _fx->type = clamp<int>(interfaceGlobals.fxNameToId(name), 0, 47);
+                _fx->type = clamp<int>(interfaceGlobals.fxNameToId(name), 0, fx.FX_TYPE_R9);
 
                 if (previousType != _fx->type && !isMultiSelection())
                 {
@@ -1749,6 +1749,8 @@ AUDIO_CORE_RAM int16_t Sequencer::getFxMax(uint8_t fxID, bool forRandom)
         case fx.FX_TYPE_VOLUME: return 100;
         case fx.FX_TYPE_PANNING: return 100;
         case fx.FX_TYPE_MICROTUNING: return 198;
+        case fx.FX_TYPE_GRAIN_SCAN: return 198;
+        case fx.FX_TYPE_GRAIN_SYNC: return 6;
         case fx.FX_TYPE_CHANCE: return forRandom ? fx.CHANCE_PROB_MAX : fx.CHANCE_MAX;
 
         case fx.FX_TYPE_BREAK_PATTERN: return 1;
@@ -1820,6 +1822,7 @@ int16_t Sequencer::getFxDefault(uint8_t fxID)
         case fx.FX_TYPE_BREAK_PATTERN: return 1;
         case fx.FX_TYPE_PANNING: return 50;
         case fx.FX_TYPE_MICROTUNING: return 99;
+        case fx.FX_TYPE_GRAIN_SCAN: return 99;
         case fx.FX_TYPE_MIDI_CHORD: return MIN_CHORD;
 
         default: return 0;
@@ -1851,6 +1854,7 @@ AUDIO_CORE_RAM int16_t Sequencer::getFxValueCorrection(uint8_t type, uint8_t val
         case fx.FX_TYPE_TEMPO: return value * 2; break;
         case fx.FX_TYPE_PANNING: return value - 50; break;
         case fx.FX_TYPE_MICROTUNING: return value - 99; break;
+        case fx.FX_TYPE_GRAIN_SCAN: return value - 99; break;
         case fx.FX_TYPE_TUNE: return value - 24; break;
         case fx.FX_TYPE_SAMPLE_SLICE: // jawnie od 1, programowo od 0
             return value + 1;
@@ -1970,6 +1974,17 @@ void Sequencer::makeFxValLabelWithAlgin(char* ptr,
         case fx.FX_TYPE_REVERSE_PLAYBACK:
             strncpy(ptr, valAfterCorrection > 0 ? "<<<" : ">>>", len);
             break;
+
+        case fx.FX_TYPE_GRAIN_SYNC:
+        {
+            static const char syncLabels[7][4] = { "OFF", "1/4", "1/8", "8T", "16", "16T", "32" };
+            const char* label = syncLabels[clamp<int>(valAfterCorrection, 0, 6)];
+            if (align == fxValLabelAlign_right)
+                snprintf(ptr, len, "%3s", label);
+            else
+                strncpy(ptr, label, len);
+            break;
+        }
 
         case fx.FX_TYPE_AMP_ENV:
         case fx.FX_TYPE_FILTER_ENV:

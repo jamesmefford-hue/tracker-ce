@@ -400,6 +400,10 @@ class InterfaceGlobals
         Sequencer::strFxConsts::enFxType::FX_TYPE_AMP_ENV,
         Sequencer::strFxConsts::enFxType::FX_TYPE_FILTER_ENV,
         Sequencer::strFxConsts::enFxType::FX_TYPE_GRANULAR_LENGTH,
+        Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_SCAN,
+        Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_JITTER,
+        Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_SPREAD,
+        Sequencer::strFxConsts::enFxType::FX_TYPE_GRAIN_SYNC,
         Sequencer::strFxConsts::enFxType::FX_TYPE_SEND_CC_A,
         Sequencer::strFxConsts::enFxType::FX_TYPE_SEND_CC_B,
         Sequencer::strFxConsts::enFxType::FX_TYPE_SEND_CC_C,
@@ -451,6 +455,10 @@ class InterfaceGlobals
                                                                   "w - WT Volume Env",
                                                                   "y - WT Filter Env",
                                                                   "z - Granular Length",
+                                                                  "N - Grain Scan",
+                                                                  "K - Grain Jitter",
+                                                                  "W - Grain Spread",
+                                                                  "Q - Grain Sync",
 #ifdef FEATURE_SYNTH
                                                                   "a - CC A / MACRO 1",
                                                                   "b - CC B / MACRO 2",
@@ -507,6 +515,10 @@ class InterfaceGlobals
                                                                        "WT Vol Env",
                                                                        "WT Filt Env",
                                                                        "Gran Length",
+                                                                       "Grain Scan",
+                                                                       "Grain Jitter",
+                                                                       "Grain Spread",
+                                                                       "Grain Sync",
 #ifdef FEATURE_SYNTH
                                                                        "CC A / MACRO 1",
                                                                        "CC B / MACRO 2",
@@ -535,7 +547,8 @@ class InterfaceGlobals
         &fxNames[29][0], &fxNames[30][0], &fxNames[31][0], &fxNames[32][0], &fxNames[33][0],
         &fxNames[34][0], &fxNames[35][0], &fxNames[36][0], &fxNames[37][0], &fxNames[38][0],
         &fxNames[39][0], &fxNames[40][0], &fxNames[41][0], &fxNames[42][0],
-        &fxNames[43][0], &fxNames[44][0], &fxNames[45][0]
+        &fxNames[43][0], &fxNames[44][0], &fxNames[45][0], &fxNames[46][0], &fxNames[47][0],
+        &fxNames[48][0], &fxNames[49][0]
     };
 
     static constexpr const char* ptrAllFxNamesShort[FX_COUNT + 1] = {
@@ -585,7 +598,11 @@ class InterfaceGlobals
         &fxShortNames[42][0],
         &fxShortNames[43][0],
         &fxShortNames[44][0],
-        &fxShortNames[45][0]
+        &fxShortNames[45][0],
+        &fxShortNames[46][0],
+        &fxShortNames[47][0],
+        &fxShortNames[48][0],
+        &fxShortNames[49][0]
     };
 
     static constexpr const char* const* ptrFxNames = &ptrAllFxNames[1];
