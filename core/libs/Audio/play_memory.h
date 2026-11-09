@@ -258,8 +258,8 @@ class AudioPlayMemory : public AudioStream
     audio_block_t* updateGranular();
     void mixExtraGranularHeads(audio_block_t* block);
 
-    // Square grains get a short fade at each edge so grain boundaries don't click
-    static constexpr int32_t kGranularSquareFade = 88; // samples, about 2 ms
+    // Square grains get a short S-shaped fade at each edge so grain boundaries don't click
+    static constexpr int32_t kGranularSquareFade = 132; // samples, about 3 ms
     // fadeLength is in sample frames read, so it grows with pitch to stay about 2 ms long
     static inline uint16_t granularSquareGain(int32_t pos, int32_t start, int32_t end,
                                               int32_t fadeLength = kGranularSquareFade)
@@ -273,7 +273,10 @@ class AudioPlayMemory : public AudioStream
             return 0;
         if (fade <= 0 || edge >= fade)
             return 65535;
-        return (uint16_t)((edge * 65535) / fade);
+        // S-shaped (smoothstep) fade: no corner where it starts or ends, so no tick
+        const int64_t x = ((int64_t)edge << 16) / fade; // 0..65536
+        const int64_t g = (((x * x) >> 16) * (3 * 65536 - 2 * x)) >> 16;
+        return (uint16_t)std::min<int64_t>(g, 65535);
     }
     int32_t granularMixGain = 32767; // current level of the mixed heads (Q15), ramped
     // Heads adding up past full scale bend smoothly into the limit instead of clipping (which
@@ -573,6 +576,7 @@ class AudioPlayMemory : public AudioStream
     strExtraGranularHead granularTwins[1 + kMaxExtraGranularHeads][kMaxGranularDensity - 1];
     uint32_t granularRandom = 0x9E3779B9; // Jitter random state (xorshift)
     bool granularOverlapActive = false;
+    bool granularFreshNote = false; // first block of a note
 
     struct strGrainContext
     {

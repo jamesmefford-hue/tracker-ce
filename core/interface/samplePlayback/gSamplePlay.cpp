@@ -2,6 +2,7 @@
 #include "fileManager.h"
 #include "mtAudioEngine.h"
 #include "samplePlayback.h"
+#include "Profiler.h"
 
 static const uint16_t framesPlaces[7][4] = {
     { 0 + 1, 424, 800 / 8 - 2, 55 },
@@ -329,7 +330,7 @@ void cSamplePlayback::showDefaultScreen()
                 showGranularJitterValue();
                 showGranularDensityText();
             }
-            display.setControlText2(label[0], "-");
+            showGranularCpuMeter();
         }
         else
         {
@@ -649,6 +650,9 @@ void cSamplePlayback::showLoopPoint2Value()
 
 void cSamplePlayback::showPreviewValue()
 {
+    if (editorInstrument->playMode == playModeGranular)
+        return; // the Preview label shows the CPU meter instead
+
     float playTimeValue =
       playProgressValue * samplePosToTime(editorInstrument->sample.length) / MAX_16BIT;
     float localEndPoint =
@@ -665,6 +669,12 @@ void cSamplePlayback::showPreviewValue()
 
 void cSamplePlayback::hidePreviewValue()
 {
+    if (editorInstrument->playMode == playModeGranular)
+    {
+        showGranularCpuMeter();
+        return;
+    }
+
     display.setControlText2(label[0], "-");
     display.setControlShow(label[0]);
     display.refreshControl(label[0]);
@@ -1104,3 +1114,23 @@ void cSamplePlayback::formatTimeSeconds(char* destBuffer, size_t destBufferSize,
 }
 
 //==============================================================================================================
+
+// Granular: the Preview label shows the audio CPU peak since the last reading, so you can see
+// how close Heads, Density and Sync are taking the Tracker to its limit (crackles near 100%).
+void cSamplePlayback::showGranularCpuMeter()
+{
+    if (editorInstrument == nullptr || editorInstrument->playMode != playModeGranular)
+        return;
+
+    Profiler::AudioProcessorUsage usage;
+    Profiler::getInstance()->getAudioProcessingUsagePercent(usage, true);
+
+    snprintf(granularCpuText,
+             sizeof(granularCpuText),
+             usage.tempMaximum >= 90 ? "CPU %d%%!" : "CPU %d%%",
+             usage.tempMaximum);
+
+    display.setControlText2(label[0], granularCpuText);
+    display.setControlShow(label[0]);
+    display.refreshControl(label[0]);
+}

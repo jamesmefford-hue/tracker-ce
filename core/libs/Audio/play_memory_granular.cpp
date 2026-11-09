@@ -114,6 +114,7 @@ AUDIO_CORE_FLASH void AudioPlayMemory::playGranular(uint8_t instrIdx, int8_t not
         granularMixGain = (heads >= 3) ? 18919 : ((heads == 2) ? 23170 : 32767);
         granularOverlapActive = false; // the first block starts the overlap grains fresh
         granularSyncActive = false;
+        granularFreshNote = true; // nothing was playing: no crossfade from the original player
     }
 
     playing = 1;
@@ -280,7 +281,16 @@ AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* bloc
     if (!ownMain)
         density = 1;
 
-    if (ownMain && !granularOverlapActive)
+    // When the main head switches between the original player and the grain streams (e.g. a
+    // Grain FX starts or ends), crossfade over one block instead of jumping
+    const bool wasOwnMain = granularOverlapActive;
+    const bool switchingOn = ownMain && !wasOwnMain;
+    const bool crossfadeIn = switchingOn && !granularFreshNote;
+    granularFreshNote = false;
+    const bool switchingOff = wasOwnMain && !ownMain && canRead;
+    const bool renderMain = ownMain || switchingOff;
+
+    if (switchingOn)
     {
         // Just switched on: start the main head's own grains fresh
         mainGranularStream = strExtraGranularHead();
@@ -290,7 +300,7 @@ AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* bloc
     }
     granularOverlapActive = ownMain;
 
-    if (!canRead || (heads < 2 && !ownMain))
+    if (!canRead || (heads < 2 && !renderMain))
     {
         // Heads was turned down to 1: bring the level back up smoothly instead of jumping
         if (granularMixGain != 32767)
@@ -442,7 +452,7 @@ AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* bloc
 
     int32_t mix[AUDIO_BLOCK_SAMPLES];
 
-    if (ownMain)
+    if (renderMain)
     {
         // Main head: its grains are played here (the original single grain is replaced)
         ctx.position = mainPosition;
@@ -454,6 +464,16 @@ AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* bloc
         ctx.pitchFrac = (uint32_t)((mainPitch - (float)ctx.pitchInt) * 65536.0f);
         ctx.squareFade = (int32_t)(kGranularSquareFade * std::max(mainPitch, 1.0f));
         playHead(mainGranularStream, granularTwins[0], mix, false, granularSyncCountdown[0]);
+
+        for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
+        {
+            const int32_t in = i + 1; // original player fades in over the block
+            const int32_t out = AUDIO_BLOCK_SAMPLES - in;
+            if (switchingOff)
+                mix[i] = (mix[i] * out + block->data[i] * in) / AUDIO_BLOCK_SAMPLES;
+            else if (crossfadeIn)
+                mix[i] += (block->data[i] * (out)) / AUDIO_BLOCK_SAMPLES;
+        }
     }
     else
     {

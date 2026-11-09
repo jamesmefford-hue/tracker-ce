@@ -102,6 +102,13 @@ void cSamplePlayback::update()
 {
     refreshLiveParams();
 
+    if (editorInstrument != nullptr && editorInstrument->playMode == playModeGranular &&
+        refreshGranularCpu > 300)
+    {
+        refreshGranularCpu = 0;
+        showGranularCpuMeter();
+    }
+
     if (refreshSpectrum)
     {
         strSampleMemory* editorSampleMemory =

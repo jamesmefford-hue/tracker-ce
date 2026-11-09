@@ -290,6 +290,9 @@ class cSamplePlayback : public ModuleBase
     void showGranularPitchText();
     void showGranularJitterValue();
     void showGranularDensityText();
+    void showGranularCpuMeter(); // audio CPU peak on the Preview label, granular only
+    char granularCpuText[16];
+    elapsedMillis refreshGranularCpu = 0;
     void showGranularHeadCursors();
     void hideGranularHeadCursors();
     void setGranularCursorSelection(strLineIndicatorSelection& selection,
