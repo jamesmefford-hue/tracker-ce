@@ -28,6 +28,7 @@
 #define play_memory_h_
 
 #include "AudioStream.h"
+#include <algorithm>
 #include "VoiceStreamManager.h"
 #include "amplifier.h"
 #include "mtStructs.h"
@@ -255,6 +256,23 @@ class AudioPlayMemory : public AudioStream
     audio_block_t* updateBeatSlice();
     audio_block_t* updateGranular();
     void mixExtraGranularHeads(audio_block_t* block);
+
+    // Square grains get a short fade at each edge so grain boundaries don't click
+    static constexpr int32_t kGranularSquareFade = 88; // samples, about 2 ms
+    static inline uint16_t granularSquareGain(int32_t pos, int32_t start, int32_t end)
+    {
+        const int32_t len = end - start;
+        if (len <= 0)
+            return 65535;
+        const int32_t fade = std::min<int32_t>(kGranularSquareFade, len / 4);
+        const int32_t edge = std::min(pos - start, end - pos);
+        if (edge <= 0)
+            return 0;
+        if (fade <= 0 || edge >= fade)
+            return 65535;
+        return (uint16_t)((edge * 65535) / fade);
+    }
+    int32_t granularMixGain = 32767; // current level of the mixed heads (Q15), ramped
     audio_block_t* updateWavetable();
 
     // singleShot
@@ -464,7 +482,32 @@ class AudioPlayMemory : public AudioStream
         uint16_t position = 0;     // centre of the current grain over the whole sample (0-65535)
         uint16_t playPosition = 0; // where this head is reading now, over the whole sample
         uint32_t drift = 0;        // how far Rate has moved this head away from Scan (16.16)
+        uint32_t delay = 0;        // silent samples before this head's first grain
+        bool pending = false;      // twin only: start the next grain as soon as this one ends
+        bool flip = false;         // PingPong: this grain plays the other way round
     } extraGranularHeads[kMaxExtraGranularHeads];
+
+    // Overlap (Triangle shape): every head plays a second "twin" grain half a grain behind its
+    // own, so the triangle envelopes add up to a steady level instead of dipping to silence at
+    // each grain. The main head's grains are then played here too, in step with its twin.
+    strExtraGranularHead mainGranularStream;
+    strExtraGranularHead granularTwins[1 + kMaxExtraGranularHeads]; // main, Head 2, Head 3
+    bool granularOverlapActive = false;
+
+    struct strGrainContext
+    {
+        const int16_t* data;
+        uint32_t sampleLength;
+        uint32_t grainLength;
+        uint32_t position; // grain centre, 16.16 over the whole sample
+        bool backwards;
+        bool pingPong;
+        bool square;
+        uint32_t pitchInt;
+        uint32_t pitchFrac;
+    };
+    int32_t nextGrainSample(strExtraGranularHead& stream, const strGrainContext& ctx, bool twin);
+    void updateGrainPlayPosition(strExtraGranularHead& stream, const strGrainContext& ctx);
     uint8_t granularPositionRefreshFlag = 1; // pozycja jest aktualizowana gdy nastepuje przejscie
                                              // pętli(audio) i ustawiona jest ta flaga
     //********

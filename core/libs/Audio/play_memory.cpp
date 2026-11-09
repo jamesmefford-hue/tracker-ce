@@ -1069,6 +1069,10 @@ void AudioPlayMemory::setInterpolationEnable(bool value)
 }
 uint16_t AudioPlayMemory::getPosition()
 {
+    // With overlap the main head's grains are played by the overlap engine: show those
+    if (playing && currentPlayMode == playModeGranular && granularOverlapActive)
+        return mainGranularStream.playPosition;
+
     return (uint16_t)(65535 *
                       ((pointsInSamples.start + iPitchCounter) / (float)currentSampleLength));
 }
