@@ -658,11 +658,24 @@ void AudioPlayMemory::refreshGranularPosition()
         {
             granularScanAccum = (uint32_t)currentGranularPosition << 16;
             granularScanBase = granularScanAccum;
+            for (uint8_t h = 0; h < kMaxExtraGranularHeads; h++)
+                extraGranularHeads[h].drift = 0;
         }
 
         const int64_t grainInAccumUnits = ((int64_t)grainLengthToUse << 32) / scanSampleLength;
-        granularScanAccum += (uint32_t)((grainInAccumUnits * scan) / 100);
+        const int64_t scanStep = (grainInAccumUnits * scan) / 100;
+        granularScanAccum += (uint32_t)scanStep;
         currentGranularPosition = (uint16_t)(granularScanAccum >> 16);
+
+        // Rate: Heads 2 and 3 travel at their own speed, so they drift away from the main
+        // grain by (rate - 1) of each step. Reversed heads drift the other way.
+        const strInstrument& instr = mtProject.instrument[currentInstrIdx];
+        for (uint8_t h = 0; h < kMaxExtraGranularHeads; h++)
+        {
+            const int64_t extra = (scanStep * ((int32_t)instr.getGranularHeadRateQ8(h) - 256)) / 256;
+            extraGranularHeads[h].drift +=
+              instr.isGranularHeadReversed(h) ? (uint32_t)(-extra) : (uint32_t)extra;
+        }
     }
 
     auto [startGranular, loopPoint1Granular, loopPoint2Granular, endGranular] =

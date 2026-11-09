@@ -164,9 +164,6 @@ AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* bloc
     const bool isSquareEnv = (granularEnvelopeTab == squareTab);
     const uint32_t spread = instr.getGranularSpread();
 
-    const uint32_t pitchInt = (uint32_t)pitchControl;
-    const uint32_t pitchFrac = (uint32_t)((pitchControl - (float)pitchInt) * 65536.0f);
-
     // Keep the total level close to one head: 1/sqrt(heads) in Q15
     const int32_t mixGain = (heads == 2) ? 23170 : 18919;
 
@@ -186,6 +183,13 @@ AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* bloc
         const bool reversed = instr.isGranularHeadReversed(h);
         const bool headBackwards = backwards != reversed;
 
+        // Pitch: each head can play at its own interval from the note
+        float headPitch = pitchControl * instr.getGranularHeadPitchRatio(h);
+        if (headPitch > 64.0f)
+            headPitch = 64.0f;
+        const uint32_t pitchInt = (uint32_t)headPitch;
+        const uint32_t pitchFrac = (uint32_t)((headPitch - (float)pitchInt) * 65536.0f);
+
         for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
         {
             if (head.grainLength == 0 || head.counter >= head.grainLength)
@@ -193,7 +197,8 @@ AUDIO_CORE_FLASH void AudioPlayMemory::mixExtraGranularHeads(audio_block_t* bloc
                 // New grain around the main position, offset by Spread for this head
                 const uint32_t offset =
                   (uint32_t)(((uint64_t)spread * (h + 1) << 32) / (100u * heads));
-                const uint32_t position = (reversed ? mirrorPosition : mainPosition) + offset;
+                const uint32_t position =
+                  (reversed ? mirrorPosition : mainPosition) + offset + head.drift;
                 const uint32_t center = (uint32_t)(((uint64_t)position * sampleLength) >> 32);
                 head.position = (uint16_t)(position >> 16);
 

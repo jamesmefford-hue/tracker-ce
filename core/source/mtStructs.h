@@ -678,6 +678,87 @@ struct strInstrument
         const uint8_t dir = getGranularDirection();
         return (dir == granularDirectionOpposite) || (dir == granularDirectionAlternate && h == 0);
     }
+    // Rate and Pitch of Heads 2 and 3 share one byte in what used to be padding (offset 70):
+    // rate in bits 0..3, pitch in bits 4..7. They have their own marker (offset 71) because
+    // instruments saved with the earlier Scan/Heads mod may hold leftover bytes there.
+    static constexpr uint8_t kGranularMotionMarker = 0x5A;
+    enum granularRate : uint8_t
+    {
+        granularRateSame = 0,   // Heads 2 and 3 travel at Scan speed
+        granularRateHalfDouble, // Head 2 at 1/2x, Head 3 at 2x
+        granularRateFaster,     // Head 2 at 2x, Head 3 at 3x
+        granularRateSlower,     // Head 2 at 1/2x, Head 3 at 1/4x
+        granularRateCount
+    };
+    enum granularPitch : uint8_t
+    {
+        granularPitchSame = 0, // all heads at the played note
+        granularPitchDetune,   // Head 2 slightly sharp, Head 3 slightly flat
+        granularPitchOctaves,  // Head 2 an octave down, Head 3 an octave up
+        granularPitchFifth,    // Head 2 a fifth up, Head 3 an octave up
+        granularPitchSub,      // Head 2 an octave down, Head 3 two octaves down
+        granularPitchUp,       // Head 2 an octave up, Head 3 two octaves up
+        granularPitchCount
+    };
+    static constexpr uint8_t kGranularRateMask = 0x0F;
+    static constexpr uint8_t kGranularPitchShift = 4;
+
+    bool hasGranularMotionFields() const { return granularMotionMarker == kGranularMotionMarker; }
+    void claimGranularMotionFields()
+    {
+        if (hasGranularMotionFields())
+            return;
+        granularMotionValue = 0;
+        granularMotionMarker = kGranularMotionMarker;
+    }
+    uint8_t getGranularRate() const
+    {
+        if (!hasGranularMotionFields())
+            return granularRateSame;
+        const uint8_t rate = granularMotionValue & kGranularRateMask;
+        return (rate < granularRateCount) ? rate : (uint8_t)granularRateSame;
+    }
+    void setGranularRate(uint8_t value)
+    {
+        claimGranularMotionFields();
+        granularMotionValue =
+          (granularMotionValue & ~kGranularRateMask) | (value & kGranularRateMask);
+    }
+    uint8_t getGranularPitch() const
+    {
+        if (!hasGranularMotionFields())
+            return granularPitchSame;
+        const uint8_t pitch = granularMotionValue >> kGranularPitchShift;
+        return (pitch < granularPitchCount) ? pitch : (uint8_t)granularPitchSame;
+    }
+    void setGranularPitch(uint8_t value)
+    {
+        claimGranularMotionFields();
+        granularMotionValue = (granularMotionValue & kGranularRateMask) |
+                              (uint8_t)(value << kGranularPitchShift);
+    }
+    // Travel speed of extra head h (0 = head 2, 1 = head 3) relative to Scan, x256
+    uint16_t getGranularHeadRateQ8(uint8_t h) const
+    {
+        static constexpr uint16_t rates[granularRateCount][2] = {
+            { 256, 256 }, { 128, 512 }, { 512, 768 }, { 128, 64 }
+        };
+        return rates[getGranularRate()][h ? 1 : 0];
+    }
+    // Pitch of extra head h (0 = head 2, 1 = head 3) as a ratio of the played note
+    float getGranularHeadPitchRatio(uint8_t h) const
+    {
+        static constexpr float ratios[granularPitchCount][2] = {
+            { 1.0f, 1.0f },        // Same
+            { 1.00695f, 0.9931f }, // Detune, about +/-12 cents
+            { 0.5f, 2.0f },        // Octaves
+            { 1.49831f, 2.0f },    // Fifth + octave
+            { 0.5f, 0.25f },       // Sub
+            { 2.0f, 4.0f },        // Up
+        };
+        return ratios[getGranularPitch()][h ? 1 : 0];
+    }
+
     uint8_t getGranularSpread() const
     {
         if (!hasGranularModFields())
@@ -715,6 +796,8 @@ struct strInstrument
     uint16_t loopPoint1;
     uint16_t loopPoint2;
     uint16_t endPoint;
+    uint8_t granularMotionValue;  // former padding, see kGranularMotionMarker
+    uint8_t granularMotionMarker; // former padding, see kGranularMotionMarker
 
     uint32_t wavetableCurrentWindow;
     //    uint16_t wavetableSync;
@@ -825,6 +908,9 @@ struct strInstrument
 static_assert(sizeof(strInstrument) == 372, "strInstrument size must remain 372 bytes");
 static_assert(offsetof(strInstrument, sample) == 4, "Granular Scan must stay inside the old padding");
 static_assert(offsetof(strInstrument, startPoint) == 62, "Granular Spread must stay inside the old padding");
+static_assert(offsetof(strInstrument, granularMotionValue) == 70 &&
+                offsetof(strInstrument, wavetableCurrentWindow) == 72,
+              "Granular Rate/Pitch must stay inside the old padding");
 
 //----------------------------------------------------------------------------------
 const strInstrument defaultInstrumentParams = {
@@ -840,6 +926,8 @@ const strInstrument defaultInstrumentParams = {
     .loopPoint1 = 1,
     .loopPoint2 = MAX_16BIT - 1,
     .endPoint = MAX_16BIT,
+    .granularMotionValue = 0,
+    .granularMotionMarker = 0,
     .wavetableCurrentWindow = 0,
     .envelope = { { 1.0, 0, 10, 0, 0, 1.0, 1000, 0, 1 },
                   { 1.0, 0, 3000, 0, 0, 1.0, 1000, 0, 0 },

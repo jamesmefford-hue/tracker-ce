@@ -463,6 +463,7 @@ class AudioPlayMemory : public AudioStream
         uint32_t envStep = 0;      // envelope table step per grain sample (16.16)
         uint16_t position = 0;     // centre of the current grain over the whole sample (0-65535)
         uint16_t playPosition = 0; // where this head is reading now, over the whole sample
+        uint32_t drift = 0;        // how far Rate has moved this head away from Scan (16.16)
     } extraGranularHeads[kMaxExtraGranularHeads];
     uint8_t granularPositionRefreshFlag = 1; // pozycja jest aktualizowana gdy nastepuje przejscie
                                              // pętli(audio) i ustawiona jest ta flaga

@@ -218,6 +218,7 @@ void cSamplePlayback::showDefaultScreen()
 
             if (!sliceScreenMode2)
             {
+                labelDataMore.dotIndicator.count = 2;
                 labelDataMore.dotIndicator.current = 0;
 
                 display.setControlText(label[0], "Slice");
@@ -236,6 +237,7 @@ void cSamplePlayback::showDefaultScreen()
             }
             else
             {
+                labelDataMore.dotIndicator.count = 2;
                 labelDataMore.dotIndicator.current = 1;
 
                 display.setControlText(label[0], "Slice");
@@ -270,22 +272,32 @@ void cSamplePlayback::showDefaultScreen()
             display.setAddControlStyle(label[5], controlStyleSpecialFx2);
             display.setControlData(label[5], &labelDataMore);
             display.setControlColors(label[5], display.getTheme().moreButtonColors);
-            labelDataMore.dotIndicator.current = granularScreenMode2 ? 1 : 0;
+            labelDataMore.dotIndicator.count = 3;
+            labelDataMore.dotIndicator.current = granularScreenPage;
 
             display.setControlText(label[0], "Preview");
-            if (!granularScreenMode2)
+            if (granularScreenPage == 0)
             {
                 display.setControlText(label[1], "Position");
                 display.setControlText(label[2], "Length");
                 display.setControlText(label[3], "Shape");
                 display.setControlText(label[4], "Loop");
             }
-            else
+            else if (granularScreenPage == 1)
             {
                 display.setControlText(label[1], "Scan");
                 display.setControlText(label[2], "Heads");
                 display.setControlText(label[3], "Spread");
                 display.setControlText(label[4], "Direction");
+            }
+            else
+            {
+                display.setControlText(label[1], "Rate");
+                display.setControlText(label[2], "Pitch");
+                display.setControlText(label[3], "");
+                display.setControlText(label[4], "");
+                display.setControlText2(label[3], "");
+                display.setControlText2(label[4], "");
             }
             display.setControlText(label[5], "More");
 
@@ -299,18 +311,23 @@ void cSamplePlayback::showDefaultScreen()
             display.refreshControl(slicePointsControl);
 
             showGranularPositionValue(); // also draws the grain cursor
-            if (!granularScreenMode2)
+            if (granularScreenPage == 0)
             {
                 showGrainLengthValue();
                 showShapeText();
                 showLoopTypeText();
             }
-            else
+            else if (granularScreenPage == 1)
             {
                 showGranularScanValue();
                 showGranularHeadsValue();
                 showGranularSpreadValue();
                 showGranularDirectionText();
+            }
+            else
+            {
+                showGranularRateText();
+                showGranularPitchText();
             }
             display.setControlText2(label[0], "-");
         }
@@ -931,7 +948,7 @@ void cSamplePlayback::showLoopTypeText()
 
 void cSamplePlayback::showGranularScanValue()
 {
-    if (!granular2ndScreenActive())
+    if (!granularPageActive(1))
         return;
 
     int scan = editorInstrument->getGranularScan();
@@ -948,7 +965,7 @@ void cSamplePlayback::showGranularScanValue()
 
 void cSamplePlayback::showGranularHeadsValue()
 {
-    if (!granular2ndScreenActive())
+    if (!granularPageActive(1))
         return;
 
     sprintf(granularHeadsText, "%d", (int)editorInstrument->getGranularHeads());
@@ -960,7 +977,7 @@ void cSamplePlayback::showGranularHeadsValue()
 
 void cSamplePlayback::showGranularSpreadValue()
 {
-    if (!granular2ndScreenActive())
+    if (!granularPageActive(1))
         return;
 
     sprintf(granularSpreadText, "%d%%", (int)editorInstrument->getGranularSpread());
@@ -972,7 +989,7 @@ void cSamplePlayback::showGranularSpreadValue()
 
 void cSamplePlayback::showGranularDirectionText()
 {
-    if (!granular2ndScreenActive())
+    if (!granularPageActive(1))
         return;
 
     switch (editorInstrument->getGranularDirection())
@@ -985,6 +1002,46 @@ void cSamplePlayback::showGranularDirectionText()
     display.setControlText2(label[4], granularDirectionText);
     display.setControlShow(label[4]);
     display.refreshControl(label[4]);
+}
+
+void cSamplePlayback::showGranularRateText()
+{
+    if (!granularPageActive(2))
+        return;
+
+    // Travel speed of Heads 2 and 3 compared with Scan
+    switch (editorInstrument->getGranularRate())
+    {
+        case strInstrument::granularRateHalfDouble: strcpy(granularRateText, ".5x  2x"); break;
+        case strInstrument::granularRateFaster: strcpy(granularRateText, "2x  3x"); break;
+        case strInstrument::granularRateSlower: strcpy(granularRateText, ".5x  .25x"); break;
+        default: strcpy(granularRateText, "Same"); break;
+    }
+
+    display.setControlText2(label[1], granularRateText);
+    display.setControlShow(label[1]);
+    display.refreshControl(label[1]);
+}
+
+void cSamplePlayback::showGranularPitchText()
+{
+    if (!granularPageActive(2))
+        return;
+
+    // Interval of Heads 2 and 3 from the played note
+    switch (editorInstrument->getGranularPitch())
+    {
+        case strInstrument::granularPitchDetune: strcpy(granularPitchText, "Detune"); break;
+        case strInstrument::granularPitchOctaves: strcpy(granularPitchText, "-12  +12"); break;
+        case strInstrument::granularPitchFifth: strcpy(granularPitchText, "+7  +12"); break;
+        case strInstrument::granularPitchSub: strcpy(granularPitchText, "-12  -24"); break;
+        case strInstrument::granularPitchUp: strcpy(granularPitchText, "+12  +24"); break;
+        default: strcpy(granularPitchText, "Same"); break;
+    }
+
+    display.setControlText2(label[2], granularPitchText);
+    display.setControlShow(label[2]);
+    display.refreshControl(label[2]);
 }
 
 float cSamplePlayback::samplePosToTime(uint32_t pos)

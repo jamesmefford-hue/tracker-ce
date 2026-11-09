@@ -86,6 +86,8 @@ static void modGranularScan(int16_t value);
 static void modGranularHeads(int16_t value);
 static void modGranularSpread(int16_t value);
 static void modGranularDirection(int16_t value);
+static void modGranularRate(int16_t value);
+static void modGranularPitch(int16_t value);
 static bool granularPage2Encoder(int16_t value);
 static bool granularPage2Button(uint8_t place, uint8_t state);
 static bool granularPage2Left();
@@ -199,7 +201,7 @@ void cSamplePlayback::start(uint32_t options)
               mtProject.instrument[mtProject.values.lastUsedInstrument].playMode)
         {
             sliceScreenMode2 = false;
-            granularScreenMode2 = false;
+            granularScreenPage = 0;
             SP->cancelMultiFrame();
             SP->clearAllNodes();
             SP->selectedPlace = 6;
@@ -1181,7 +1183,7 @@ static void functButton5()
     }
     if (SP->editorInstrument->playMode == playModeGranular)
     {
-        SP->granularScreenMode2 = !SP->granularScreenMode2;
+        SP->granularScreenPage = (SP->granularScreenPage + 1) % 3;
         SP->selectedPlace = 5;
         SP->showDefaultScreen();
         SP->activateLabelsBorder();
@@ -2013,7 +2015,7 @@ static void changePlayModeSelection(int16_t value)
     }
 
     SP->sliceScreenMode2 = false;
-    SP->granularScreenMode2 = false;
+    SP->granularScreenPage = 0;
 
     newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
 
@@ -2674,11 +2676,52 @@ static void modGranularDirection(int16_t value)
     newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
 }
 
-// Granular page 2 (Scan, Heads, Spread, Direction). Each returns true when it handled the input.
+static void modGranularRate(int16_t value)
+{
+    int rate = (int)SP->editorInstrument->getGranularRate() + value;
+
+    if (rate > strInstrument::granularRateCount - 1)
+        rate = strInstrument::granularRateCount - 1;
+    else if (rate < 0)
+        rate = 0;
+
+    SP->editorInstrument->setGranularRate((uint8_t)rate);
+    SP->showGranularRateText();
+    newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
+}
+
+static void modGranularPitch(int16_t value)
+{
+    int pitch = (int)SP->editorInstrument->getGranularPitch() + value;
+
+    if (pitch > strInstrument::granularPitchCount - 1)
+        pitch = strInstrument::granularPitchCount - 1;
+    else if (pitch < 0)
+        pitch = 0;
+
+    SP->editorInstrument->setGranularPitch((uint8_t)pitch);
+    SP->showGranularPitchText();
+    newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
+}
+
+// Granular pages 2 (Scan, Heads, Spread, Direction) and 3 (Rate, Pitch).
+// Each returns true when it handled the input.
 static bool granularPage2Encoder(int16_t value)
 {
     if (!SP->granular2ndScreenActive())
         return false;
+
+    if (SP->granularScreenPage == 2)
+    {
+        switch (SP->selectedPlace)
+        {
+            case 1: modGranularRate((value > 0) ? 1 : -1); break;
+            case 2: modGranularPitch((value > 0) ? 1 : -1); break;
+            case 6: return false; // Play Mode list works as on page 1
+            default: break;
+        }
+        return true;
+    }
 
     switch (SP->selectedPlace)
     {
@@ -2697,7 +2740,8 @@ static bool granularPage2Button(uint8_t place, uint8_t state)
     if (!SP->granular2ndScreenActive())
         return false;
 
-    if ((place >= 1) && (place <= 4) && (state == buttonPress || state == UINT8_MAX))
+    const uint8_t lastPlace = (SP->granularScreenPage == 2) ? 2 : 4; // page 3 has Rate, Pitch
+    if ((place >= 1) && (place <= lastPlace) && (state == buttonPress || state == UINT8_MAX))
     {
         SP->selectedPlace = place;
         SP->activateLabelsBorder();
@@ -2715,7 +2759,7 @@ static bool granularPage2Left()
         case 2: SP->selectedPlace = 1; break;
         case 3: SP->selectedPlace = 2; break;
         case 4: SP->selectedPlace = 3; break;
-        case 5: SP->selectedPlace = 4; break;
+        case 5: SP->selectedPlace = ((SP->granularScreenPage == 2) ? 2 : 4); break;
         case 6: SP->selectedPlace = 5; break;
         default: break;
     }
@@ -2732,7 +2776,7 @@ static bool granularPage2Right()
     {
         case 0: SP->selectedPlace = 1; break;
         case 1: SP->selectedPlace = 2; break;
-        case 2: SP->selectedPlace = 3; break;
+        case 2: SP->selectedPlace = ((SP->granularScreenPage == 2) ? 5 : 3); break;
         case 3: SP->selectedPlace = 4; break;
         case 4: SP->selectedPlace = 5; break;
         case 5: SP->selectedPlace = 6; break;
@@ -2876,6 +2920,16 @@ void cSamplePlayback::modSlicePlayThru(int16_t val)
 
 void cSamplePlayback::setDefault(uint8_t pos)
 {
+    if (granularPageActive(2))
+    {
+        // Delete resets the selected page 3 value
+        if (SP->selectedPlace == 1)
+            modGranularRate(-(int)SP->editorInstrument->getGranularRate());
+        else if (SP->selectedPlace == 2)
+            modGranularPitch(-(int)SP->editorInstrument->getGranularPitch());
+        return;
+    }
+
     if (granular2ndScreenActive())
     {
         // Delete resets the selected page 2 value
@@ -3306,7 +3360,7 @@ void cSamplePlayback::setDefaultGranularLoop()
 bool cSamplePlayback::granular2ndScreenActive()
 {
     return (editorInstrument != nullptr) && (editorInstrument->playMode == playModeGranular) &&
-           granularScreenMode2;
+           (granularScreenPage != 0);
 }
 
 bool cSamplePlayback::slice2ndScreenActive()
