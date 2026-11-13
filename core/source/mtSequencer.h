@@ -186,6 +186,7 @@ class Sequencer
             FX_TYPE_R8,
             FX_TYPE_GRAIN_SYNC = FX_TYPE_R8,
             FX_TYPE_R9,
+            FX_TYPE_TAPE_STOP = FX_TYPE_R9,
 
         };
 

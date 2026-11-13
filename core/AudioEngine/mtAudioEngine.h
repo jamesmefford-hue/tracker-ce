@@ -743,6 +743,7 @@ class playerEngine
     void fxGrain(uint8_t param, int16_t value, uint8_t fx_n);
     void endFxGrain(uint8_t param, uint8_t fx_n);
     void applyGrainFx(uint8_t param);
+    void fxTapeStop(int16_t value);
     int16_t grainFxSlot[AudioPlayMemory::granularFxCount][2] = {
         { AudioPlayMemory::kGranularFxNone, AudioPlayMemory::kGranularFxNone },
         { AudioPlayMemory::kGranularFxNone, AudioPlayMemory::kGranularFxNone },

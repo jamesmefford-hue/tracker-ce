@@ -124,7 +124,7 @@ const uint8_t PATTERN_INDEX_MIN = 1;
 const uint8_t PATTERN_INDEX_MAX = 255;
 
 const uint8_t FX_MAX = 49;
-const uint8_t FX_COUNT = 50;
+const uint8_t FX_COUNT = 51;
 const uint8_t FX_COUNT_HIDDEN_FXes = 1; // ile fxów na końcu listy jest ukrytych
 
 const uint8_t FX_VALUE_MAX = 127;
@@ -392,6 +392,7 @@ enum instrumentPlayMode
     playModeBeatSlice,
     playModeWavetable, // tylko na uzytek interface - sample type obsługuje to w silniku
     playModeGranular,
+    playModeTape, // tape loop: varispeed, wow & flutter, saturation, age
     playModeCount
 };
 
@@ -843,17 +844,69 @@ struct strInstrument
         granularSpreadValue = value;
     }
 
+    // Tape play mode settings. Speed, Wow, Flutter and Drive live in the bytes of
+    // wavetableCurrentWindow (only used in Wavetable mode, so free in Tape mode); Age and Wear in
+    // former padding of the sample struct. They count only when sample.tapeMarker is set;
+    // otherwise Tape mode reads the defaults below.
+    static constexpr uint8_t kTapeMarker = 0x7A;
+    enum tapeParam : uint8_t
+    {
+        tapeSpeed,   // -100..100, x2 = percent of normal speed (negative plays backwards)
+        tapeWow,     // 0..100
+        tapeFlutter, // 0..100
+        tapeDrive,   // 0..100
+        tapeAge,     // 0..100
+        tapeWear,    // 0..100
+        tapeParamCount
+    };
+    static constexpr int8_t kTapeDefaults[tapeParamCount] = { 50, 15, 10, 25, 15, 0 };
+    static constexpr int8_t kTapeMin[tapeParamCount] = { -100, 0, 0, 0, 0, 0 };
+    static constexpr int8_t kTapeMax[tapeParamCount] = { 100, 100, 100, 100, 100, 100 };
+
+    bool hasTapeFields() const { return sample.tapeMarker == kTapeMarker; }
+    int8_t* tapeParamByte(uint8_t param)
+    {
+        if (param < tapeAge)
+            return (int8_t*)((uint8_t*)&wavetableCurrentWindow + param);
+        return (int8_t*)((param == tapeAge) ? &sample.tapeAgeValue : &sample.tapeWearValue);
+    }
+    int8_t getTapeParam(uint8_t param) const
+    {
+        if (param >= tapeParamCount)
+            return 0;
+        if (!hasTapeFields())
+            return kTapeDefaults[param];
+        const int8_t v = *const_cast<strInstrument*>(this)->tapeParamByte(param);
+        return (v < kTapeMin[param]) ? kTapeMin[param] : ((v > kTapeMax[param]) ? kTapeMax[param] : v);
+    }
+    void setTapeParam(uint8_t param, int8_t value)
+    {
+        if (param >= tapeParamCount)
+            return;
+        if (!hasTapeFields())
+        {
+            // First edit: write all defaults, then set the marker
+            for (uint8_t p = 0; p < tapeParamCount; p++)
+                *tapeParamByte(p) = kTapeDefaults[p];
+            sample.tapeMarker = kTapeMarker;
+        }
+        *tapeParamByte(param) = value;
+    }
+
     struct strSampleBankSlot
     {
         uint8_t type; //;
         char file_name[32];
         uint8_t granularTimingValue;  // former padding: granular Density / Sync
         uint8_t granularTimingMarker; // former padding: kGranularTimingMarker when set
+        uint8_t tapeMarker;           // former padding: kTapeMarker when Tape settings are set
 
         int16_t* address;
         uint32_t length; // = 0;
 
         uint16_t wavetable_window_size; // = 2048;
+        int8_t tapeAgeValue;  // former padding: Tape Age
+        int8_t tapeWearValue; // former padding: Tape Wear
         uint32_t wavetableWindowNumber; // = 0;
 
     } sample;
@@ -990,6 +1043,11 @@ static_assert(offsetof(strInstrument::strSampleBankSlot, granularTimingMarker) =
                 offsetof(strInstrument::strSampleBankSlot, address) == 36 &&
                 offsetof(strInstrument, name) == 56,
               "Granular Density must stay inside the old sample padding");
+static_assert(offsetof(strInstrument::strSampleBankSlot, tapeMarker) == 35 &&
+                offsetof(strInstrument::strSampleBankSlot, tapeWearValue) == 47 &&
+                offsetof(strInstrument::strSampleBankSlot, wavetableWindowNumber) == 48 &&
+                sizeof(strInstrument::strSampleBankSlot) == 52,
+              "Tape Age/Wear must stay inside the old sample padding");
 static_assert(offsetof(strInstrument, granularJitterValue) == 257 &&
                 offsetof(strInstrument, glide) == 258,
               "Granular Jitter must stay inside the old padding");
@@ -1000,7 +1058,7 @@ const strInstrument defaultInstrumentParams = {
     .granularScanMarker = 0,
     .granularScanValue = 0,
     .granularHeadsValue = 1,
-    .sample = { 0, {}, 0, 0, nullptr, 0, 2048, 0 },
+    .sample = { 0, {}, 0, 0, 0, nullptr, 0, 2048, 0, 0, 0 },
     .name = {},
     .playMode = playModeSingleShot,
     .granularSpreadValue = 0,
@@ -1053,7 +1111,7 @@ static constexpr uint32_t kClmtElementCount = 64;
 
 inline bool isPlayModeStreamable(uint8_t playMode)
 {
-    if (playMode == playModeWavetable || playMode == playModeGranular)
+    if (playMode == playModeWavetable || playMode == playModeGranular || playMode == playModeTape)
     {
         return false;
     }

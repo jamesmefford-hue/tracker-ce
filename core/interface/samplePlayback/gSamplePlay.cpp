@@ -370,6 +370,34 @@ void cSamplePlayback::showDefaultScreen()
             hideWavetablePositionCursor();
 
             display.setControlText2(label[0], "-");
+
+            if (editorInstrument->playMode == playModeTape)
+            {
+                // label 5 is "More": page 1 = Start, Loop, End; 2 = Speed, Wow, Flutter, Drive;
+                // 3 = Age, Wear
+                display.setAddControlStyle(label[5], controlStyleSpecialFx2);
+                display.setControlData(label[5], &labelDataMore);
+                display.setControlColors(label[5], display.getTheme().moreButtonColors);
+                labelDataMore.dotIndicator.count = 3;
+                labelDataMore.dotIndicator.current = tapeScreenPage;
+                display.setControlText(label[5], "More");
+                display.setControlText2(label[5], "");
+
+                if (tapeScreenPage != 0)
+                {
+                    static const char* const names[strInstrument::tapeParamCount] = {
+                        "Speed", "Wow", "Flutter", "Drive", "Age", "Wear"
+                    };
+                    for (uint8_t place = 1; place <= 4; place++)
+                    {
+                        const uint8_t param = tapeParamAt(tapeScreenPage, place);
+                        display.setControlText(label[place], (param != 0xFF) ? names[param] : "");
+                        display.setControlText2(label[place], "");
+                        if (param != 0xFF)
+                            showTapeValue(param);
+                    }
+                }
+            }
         }
     }
     else
@@ -515,6 +543,9 @@ void cSamplePlayback::showWavetableWindowSize()
 
 void cSamplePlayback::showZoomValue()
 {
+    if (editorInstrument->playMode == playModeTape)
+        return; // Tape has More instead of Zoom
+
     sprintf(zoomTextValue, "%.2f", zoom.zoomValue);
 
     int labelIdx = 5;
@@ -1133,4 +1164,44 @@ void cSamplePlayback::showGranularCpuMeter()
     display.setControlText2(label[0], granularCpuText);
     display.setControlShow(label[0]);
     display.refreshControl(label[0]);
+}
+
+//==============================================================================================================
+// Tape play mode pages
+
+uint8_t cSamplePlayback::tapeParamAt(uint8_t page, uint8_t place)
+{
+    if (page == 1 && place >= 1 && place <= 4)
+        return strInstrument::tapeSpeed + (place - 1); // Speed, Wow, Flutter, Drive
+    if (page == 2 && place >= 1 && place <= 2)
+        return strInstrument::tapeAge + (place - 1); // Age, Wear
+    return 0xFF;
+}
+
+void cSamplePlayback::showTapeValue(uint8_t param)
+{
+    if (!tape2ndScreenActive() || param >= strInstrument::tapeParamCount)
+        return;
+
+    // Find the place this setting sits at on the current page
+    uint8_t place = 0;
+    for (uint8_t p = 1; p <= 4; p++)
+        if (tapeParamAt(tapeScreenPage, p) == param)
+            place = p;
+    if (place == 0)
+        return;
+
+    const int value = editorInstrument->getTapeParam(param);
+    char* text = tapeValueText[place - 1];
+
+    if (param == strInstrument::tapeSpeed)
+        sprintf(text, "%d%%", value * 2); // negative = backwards
+    else if (value == 0)
+        strcpy(text, "Off");
+    else
+        sprintf(text, "%d", value);
+
+    display.setControlText2(label[place], text);
+    display.setControlShow(label[place]);
+    display.refreshControl(label[place]);
 }

@@ -246,6 +246,7 @@ class AudioPlayMemory : public AudioStream
     void playBeatSlice(uint8_t instrIdx, int8_t note);
     void playGranular(uint8_t instrIdx, int8_t note);
     void playWavetable(uint8_t instrIdx, int8_t note);
+    void playTape(uint8_t instrIdx, int8_t note);
     // UPDATE OBSLUGA OGÓLNA
 
     // UPDATE Z PODZIALEM NA TRYBY
@@ -256,6 +257,24 @@ class AudioPlayMemory : public AudioStream
     audio_block_t* updateSlice();
     audio_block_t* updateBeatSlice();
     audio_block_t* updateGranular();
+    audio_block_t* updateTape();
+
+    // Tape play mode state (see play_memory_tape.cpp)
+    struct strTapeState
+    {
+        int64_t position = 0;      // read position, sample frames in 48.16 fixed point
+        float spin = 1.0f;         // tape motor speed, 0 = stopped .. 1 = running
+        float spinTarget = 1.0f;   // where the motor is heading (Tape Stop FX)
+        float spinStep = 0.0f;     // motor speed change per sample
+        float lfoTime = 0.0f;      // seconds since the note started, for wow and flutter
+        float lastMod = 1.0f;      // wow / flutter speed factor at the end of the last block
+        float tone1 = 0.0f;        // Age low-pass filter states
+        float tone2 = 0.0f;
+        uint32_t noise = 0x1234567; // hiss random state
+        uint16_t passes = 0;       // times round the loop since the note started (Wear)
+        bool inLoop = false;       // reached the loop (before that it plays from Start)
+    } tape;
+    int16_t tapeStopFx = -1; // Tape Stop FX: -1 none, 0..100 stop time
     void mixExtraGranularHeads(audio_block_t* block);
 
     // Square grains get a short S-shaped fade at each edge so grain boundaries don't click
@@ -521,6 +540,9 @@ class AudioPlayMemory : public AudioStream
         granularFxCount
     };
     static constexpr int16_t kGranularFxNone = INT16_MIN;
+    // Tape Stop FX: 1..100 stops the tape over 0.05..3 s; -1 (FX ended) or 0 starts it again
+    void setTapeStop(int16_t value);
+
     void setGranularFx(uint8_t param, int16_t value)
     {
         if (param >= granularFxCount)

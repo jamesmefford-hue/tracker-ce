@@ -12,7 +12,7 @@
 
 const char playModeFunctLabels[playModeCount][15] = {
     "1-Shot", "Forward Loop", "Backward Loop", "Pingpong Loop",
-    "Slice",  "Beat Slice",   "Wavetable",     "Granular",
+    "Slice",  "Beat Slice",   "Wavetable",     "Granular", "Tape",
 
 };
 
@@ -125,6 +125,10 @@ class cSamplePlayback : public ModuleBase
     void modSlicePlayThru(int16_t val);
     bool slice2ndScreenActive();
     bool granular2ndScreenActive();
+    bool tape2ndScreenActive();
+    // Tape: which setting sits at place 1..4 of a Tape page (0xFF = none)
+    static uint8_t tapeParamAt(uint8_t page, uint8_t place);
+    void showTapeValue(uint8_t param);
 
     void setDefault(uint8_t pos);
     void setDefaultStartPoint();
@@ -189,6 +193,8 @@ class cSamplePlayback : public ModuleBase
     elapsedMicros refreshPlayProgressValue = 0;
     float playPitch = 1.0;
     bool sliceScreenMode2;
+    uint8_t tapeScreenPage = 0; // tape page 0: Start..End, 1: Speed..Drive, 2: Age, Wear
+    char tapeValueText[4][15];
     uint8_t granularScreenPage = 0; // granular page 0: Position..Loop, 1: Scan..Direction, 2: Rate..Density
     bool granularPageActive(uint8_t page) { return granular2ndScreenActive() && granularScreenPage == page; }
     int8_t displayedTrack = -1;

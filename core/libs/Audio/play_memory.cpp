@@ -148,6 +148,7 @@ AUDIO_CORE_RAM void AudioPlayMemory::update(void)
         case playModeSlice: block = updateSlice(); break;
         case playModeBeatSlice: block = updateBeatSlice(); break;
         case playModeGranular: block = updateGranular(); break;
+        case playModeTape: block = updateTape(); break;
         case playModeWavetable: block = updateWavetable(); break;
         default: break;
     }
@@ -194,6 +195,7 @@ AUDIO_CORE_FLASH uint8_t AudioPlayMemory::play(uint8_t instrIdx, int8_t note)
         case playModeSlice: playSlice(instrIdx, note); break;
         case playModeBeatSlice: playBeatSlice(instrIdx, note); break;
         case playModeGranular: playGranular(instrIdx, note); break;
+        case playModeTape: playTape(instrIdx, note); break;
         case playModeWavetable: playWavetable(instrIdx, note); break;
         default: return 0;
     }
@@ -1069,6 +1071,10 @@ void AudioPlayMemory::setInterpolationEnable(bool value)
 }
 uint16_t AudioPlayMemory::getPosition()
 {
+    // Tape keeps its own read position
+    if (playing && currentPlayMode == playModeTape && currentSampleLength > 0)
+        return (uint16_t)(((tape.position >> 16) * 65535) / currentSampleLength);
+
     // With overlap the main head's grains are played by the overlap engine: show those
     if (playing && currentPlayMode == playModeGranular && granularOverlapActive)
         return mainGranularStream.playPosition;
@@ -1212,7 +1218,7 @@ void AudioPlayMemory::refreshStartParameters()
     currentSampleLength = mtProject.instrument[currentInstrIdx].sample.length;
 
     currentIsStreamed = (currentPlayMode != playModeWavetable &&
-                         currentPlayMode != playModeGranular) &&
+                         currentPlayMode != playModeGranular && currentPlayMode != playModeTape) &&
                         mtProject.sampleMemory[currentInstrIdx].isStreamed;
     currentPreCacheFrames = mtProject.sampleMemory[currentInstrIdx].preCacheFrames;
     currentSliceCacheAddress = nullptr;

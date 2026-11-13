@@ -264,6 +264,11 @@ const char* const fxDescriptions[FX_COUNT] = {
     "Starts grains in time with the song tempo.\n\n"
     "OFF uses the instrument's free Density. 1/4, 1/8, 8T (1/8 triplet), 16, 16T and 32 "
     "start a grain on each head at that note value.",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_TAPE_STOP,
+    "Destination: Sample \n\n"
+    "Tape play mode: slows the tape to a stop, like switching off a tape machine.\n\n"
+    "The value sets how long it takes, from 1 (0.05 s) to 100 (3 s). When the FX ends the "
+    "tape starts again at the same rate. 0 starts it again straight away.",
     // Sequencer::strFxConsts::enFxType::FX_TYPE_SEND_CC_A,
     "Destination: MIDI, Synth \n\nSends MIDI CC number set to A in MIDI Instrument Parameters."
     "\n"
@@ -575,6 +580,11 @@ const char* const fxDescriptions[FX_COUNT] = {
     "Starts grains in time with the song tempo.\n\n"
     "OFF uses the instrument's free Density. 1/4, 1/8, 8T (1/8 triplet), 16, 16T and 32 "
     "start a grain on each head at that note value.",
+    // Sequencer::strFxConsts::enFxType::FX_TYPE_TAPE_STOP,
+    "Destination: Sample \n\n"
+    "Tape play mode: slows the tape to a stop, like switching off a tape machine.\n\n"
+    "The value sets how long it takes, from 1 (0.05 s) to 100 (3 s). When the FX ends the "
+    "tape starts again at the same rate. 0 starts it again straight away.",
     // Sequencer::strFxConsts::enFxType::FX_TYPE_SEND_CC_A,
     "Destination: MIDI \n\nSends MIDI CC number set to A in MIDI Instrument Parameters."
     "\n"

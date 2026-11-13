@@ -48,6 +48,7 @@ AUDIO_CORE_RAM void playerEngine::seqFx(uint8_t fx_id, uint8_t fx_val, uint8_t f
         fx_id == Sequencer::strFxConsts::FX_TYPE_GRAIN_JITTER ||
         fx_id == Sequencer::strFxConsts::FX_TYPE_GRAIN_SPREAD ||
         fx_id == Sequencer::strFxConsts::FX_TYPE_GRAIN_SYNC ||
+        fx_id == Sequencer::strFxConsts::FX_TYPE_TAPE_STOP ||
         fx_id == Sequencer::strFxConsts::FX_TYPE_VOLUME));
     if (!skipEndFx)
     {
@@ -87,7 +88,7 @@ AUDIO_CORE_RAM void playerEngine::seqFx(uint8_t fx_id, uint8_t fx_val, uint8_t f
         case Sequencer::strFxConsts::FX_TYPE_GRAIN_SYNC:
             fxGrain(AudioPlayMemory::granularFxSync, fx_val, fx_n);
             break;
-        case Sequencer::strFxConsts::FX_TYPE_R9: break;
+        case Sequencer::strFxConsts::FX_TYPE_TAPE_STOP: fxTapeStop(fx_val); break;
         case Sequencer::strFxConsts::FX_TYPE_R30: fxAmpEnv(fx_val, fx_n); break;
         case Sequencer::strFxConsts::FX_TYPE_R31: fxFilterEnv(fx_val, fx_n); break;
         case Sequencer::strFxConsts::FX_TYPE_POSITION: fxPosition(fx_val, fx_n); break;
@@ -151,7 +152,7 @@ AUDIO_CORE_RAM void playerEngine::endFx(uint8_t fx_id, uint8_t fx_n)
             endFxGrain(AudioPlayMemory::granularFxSpread, fx_n);
             break;
         case Sequencer::strFxConsts::FX_TYPE_GRAIN_SYNC: endFxGrain(AudioPlayMemory::granularFxSync, fx_n); break;
-        case Sequencer::strFxConsts::FX_TYPE_R9: break;
+        case Sequencer::strFxConsts::FX_TYPE_TAPE_STOP: fxTapeStop(-1); break;
         case Sequencer::strFxConsts::FX_TYPE_R30: endFxAmpEnv(fx_n); break;
         case Sequencer::strFxConsts::FX_TYPE_R31: endFxFilterEnv(fx_n); break;
         case Sequencer::strFxConsts::FX_TYPE_POSITION: endFxPosition(fx_n); break;
@@ -2894,4 +2895,11 @@ void playerEngine::applyGrainFx(uint8_t param)
 
     for (auto* playMem : playMemPtr)
         playMem->setGranularFx(param, value);
+}
+
+// Tape Stop FX: value 1..100 stops the tape over 0.05..3 s; -1 (FX ended) or 0 starts it again
+void playerEngine::fxTapeStop(int16_t value)
+{
+    for (auto* playMem : playMemPtr)
+        playMem->setTapeStop(value);
 }

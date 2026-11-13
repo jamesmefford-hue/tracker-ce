@@ -211,6 +211,7 @@ void cSamplePlayback::start(uint32_t options)
         {
             sliceScreenMode2 = false;
             granularScreenPage = 0;
+            tapeScreenPage = 0;
             SP->cancelMultiFrame();
             SP->clearAllNodes();
             SP->selectedPlace = 6;
@@ -1190,6 +1191,18 @@ static void functButton5()
     {
         return;
     }
+    if (SP->editorInstrument->playMode == playModeTape)
+    {
+        SP->cancelMultiFrame();
+        SP->clearAllNodes();
+        SP->points.selected = 0;
+        SP->refreshPoints = 1;
+        SP->tapeScreenPage = (SP->tapeScreenPage + 1) % 3;
+        SP->selectedPlace = 5;
+        SP->showDefaultScreen();
+        SP->activateLabelsBorder();
+        return;
+    }
     if (SP->editorInstrument->playMode == playModeGranular)
     {
         SP->granularScreenPage = (SP->granularScreenPage + 1) % 3;
@@ -1347,7 +1360,8 @@ static void functEncoder(int16_t value)
             {
                 if ((SP->editorInstrument->playMode != playModeSlice) &&
                     (SP->editorInstrument->playMode != playModeBeatSlice) &&
-                    (SP->editorInstrument->playMode != playModeGranular))
+                    (SP->editorInstrument->playMode != playModeGranular) &&
+                    (SP->editorInstrument->playMode != playModeTape))
                 {
                     changeZoom(value);
                 }
@@ -2025,6 +2039,7 @@ static void changePlayModeSelection(int16_t value)
 
     SP->sliceScreenMode2 = false;
     SP->granularScreenPage = 0;
+    SP->tapeScreenPage = 0;
 
     newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
 
@@ -2743,8 +2758,38 @@ static void modGranularDensity(int16_t value)
 
 // Granular pages 2 (Scan, Heads, Spread, Direction) and 3 (Rate, Pitch, Jitter, Density).
 // Each returns true when it handled the input.
+static void modTapeParam(uint8_t param, int16_t value)
+{
+    if (param >= strInstrument::tapeParamCount)
+        return;
+
+    int v = SP->editorInstrument->getTapeParam(param) + value;
+    if (v < strInstrument::kTapeMin[param])
+        v = strInstrument::kTapeMin[param];
+    else if (v > strInstrument::kTapeMax[param])
+        v = strInstrument::kTapeMax[param];
+
+    SP->editorInstrument->setTapeParam(param, (int8_t)v);
+    SP->showTapeValue(param);
+    newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
+}
+
+// Tape pages 2 and 3 share the page 2 input handlers below
+static uint8_t tapeLastPlace()
+{
+    return (SP->tapeScreenPage == 2) ? 2 : 4;
+}
+
 static bool granularPage2Encoder(int16_t value)
 {
+    if (SP->tape2ndScreenActive())
+    {
+        if (SP->selectedPlace == 6)
+            return false; // Play Mode list works as on page 1
+        modTapeParam(SP->tapeParamAt(SP->tapeScreenPage, SP->selectedPlace), value);
+        return true;
+    }
+
     if (!SP->granular2ndScreenActive())
         return false;
 
@@ -2776,6 +2821,16 @@ static bool granularPage2Encoder(int16_t value)
 
 static bool granularPage2Button(uint8_t place, uint8_t state)
 {
+    if (SP->tape2ndScreenActive())
+    {
+        if ((place >= 1) && (place <= tapeLastPlace()) && (state == buttonPress || state == UINT8_MAX))
+        {
+            SP->selectedPlace = place;
+            SP->activateLabelsBorder();
+        }
+        return true;
+    }
+
     if (!SP->granular2ndScreenActive())
         return false;
 
@@ -2789,6 +2844,16 @@ static bool granularPage2Button(uint8_t place, uint8_t state)
 
 static bool granularPage2Left()
 {
+    if (SP->tape2ndScreenActive())
+    {
+        if (SP->selectedPlace == 5)
+            SP->selectedPlace = tapeLastPlace();
+        else if (SP->selectedPlace > 1 && SP->selectedPlace <= 6)
+            SP->selectedPlace--;
+        SP->activateLabelsBorder();
+        return true;
+    }
+
     if (!SP->granular2ndScreenActive())
         return false;
 
@@ -2807,6 +2872,16 @@ static bool granularPage2Left()
 
 static bool granularPage2Right()
 {
+    if (SP->tape2ndScreenActive())
+    {
+        if (SP->selectedPlace == tapeLastPlace())
+            SP->selectedPlace = 5;
+        else if (SP->selectedPlace < 6)
+            SP->selectedPlace++;
+        SP->activateLabelsBorder();
+        return true;
+    }
+
     if (!SP->granular2ndScreenActive())
         return false;
 
@@ -2958,6 +3033,15 @@ void cSamplePlayback::modSlicePlayThru(int16_t val)
 
 void cSamplePlayback::setDefault(uint8_t pos)
 {
+    if (tape2ndScreenActive())
+    {
+        // Delete resets the selected Tape setting
+        const uint8_t param = tapeParamAt(tapeScreenPage, selectedPlace);
+        if (param != 0xFF)
+            modTapeParam(param, strInstrument::kTapeDefaults[param] - editorInstrument->getTapeParam(param));
+        return;
+    }
+
     if (granularPageActive(2))
     {
         // Delete resets the selected page 3 value
@@ -3397,6 +3481,12 @@ void cSamplePlayback::setDefaultGranularLoop()
         instrumentPlayer[i].setRefreshBit(GRANULAR_LOOP_SEND_MASK);
     }
     newFileManager.setInstrumentStructChanged(mtProject.values.lastUsedInstrument);
+}
+
+bool cSamplePlayback::tape2ndScreenActive()
+{
+    return (editorInstrument != nullptr) && (editorInstrument->playMode == playModeTape) &&
+           (tapeScreenPage != 0);
 }
 
 bool cSamplePlayback::granular2ndScreenActive()
